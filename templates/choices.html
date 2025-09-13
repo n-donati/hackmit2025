@@ -87,7 +87,14 @@
             display: grid;
             grid-template-columns: 2fr 2fr;
             min-height: 120px;
-            transition: transform 120ms ease, box-shadow 120ms ease;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .section:hover {
+            background-color: #0a42a8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(13, 80, 205, 0.3);
         }
         .section:active { transform: scale(0.98); box-shadow: 0 6px 14px rgba(0,0,0,0.08); }
         .section.is-pressed { transform: scale(0.98); box-shadow: 0 6px 14px rgba(0,0,0,0.08); }
@@ -292,12 +299,12 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>What is your objective</h1>
+            <h1>What is your objective?</h1>
             <p>Test strips, photos, and location in one flow.</p>
         </div>
         
         <div class="content">
-            <button class="section" onclick="finalizeWith('drinking', this)" style="border:none; padding:0; text-align:left; width:100%; display:block; background: transparent;">
+            <div class="section" onclick="selectChoice('drinking')">
                 <div class="section-header">
                     <div class="section-title">Drinking</div>
                         <div class="section-description">
@@ -311,11 +318,11 @@
                 </div>
             </button>
             
-            <button class="section" onclick="finalizeWith('irrigation', this)" style="border:none; padding:0; text-align:left; width:100%; display:block; background: transparent;">
+            <div class="section" onclick="selectChoice('irrigation')">
                 <div class="section-header">
                     <div class="section-title">Irrigation</div>
                         <div class="section-description">
-                    Test if it’s good for watering plants and crops.
+                    Test if it's good for watering plants and crops.
                 </div>
                 </div>
                 <div>
@@ -325,7 +332,7 @@
                 </div>
             </button>
             
-            <button class="section" onclick="finalizeWith('human', this)" style="border:none; padding:0; text-align:left; width:100%; display:block; background: transparent;">
+            <div class="section" onclick="selectChoice('cleaning')">
                 <div class="section-header">
                     <div class="section-title">Human Use</div>
                         <div class="section-description">
@@ -339,7 +346,7 @@
                 </div>
             </button>
 
-            <button class="section" onclick="finalizeWith('animals', this)" style="border:none; padding:0; text-align:left; width:100%; display:block; background: transparent;">
+            <div class="section" onclick="selectChoice('animals')">
                 <div class="section-header">
                     <div class="section-title">Animals</div>
                         <div class="section-description">
@@ -456,6 +463,22 @@
             } catch (e) {
                 alert('Error: ' + e.message);
             }
+        function selectChoice(choice) {
+            console.log('Selected choice:', choice);
+            
+            // Show loading or processing state (optional)
+            const selectedSection = event.target.closest('.section');
+            selectedSection.style.background = '#0a42a8';
+            
+            // Simulate analysis processing time
+            setTimeout(() => {
+                // Navigate to water-health.html with the choice parameter
+                window.location.href = `water-health.html?choice=${choice}`;
+            }, 500);
+        }
+        
+        function continueAssessment() {
+            console.log('Continue button clicked');
         }
     </script>
 </body>
