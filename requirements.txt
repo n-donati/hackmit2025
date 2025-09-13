@@ -2,11 +2,11 @@ asgiref==3.9.1
 django==5.2.6
 sqlparse==0.5.3
 opencv-python==4.12.0.88
-numpy==2.2.6
-google-genai==0.8.0
+numpy==2.3.3
+google-genai==1.36.0
 Pillow==11.3.0
-python-dotenv==1.0.1
-smolagents==1.5.0
-litellm==1.52.16
+python-dotenv==1.1.1
+smolagents==1.21.3
+litellm==1.77.0
 transformers==4.56.1
 os==1.1.1
