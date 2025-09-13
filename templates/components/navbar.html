@@ -1,0 +1,54 @@
+<nav class="bottom-nav">
+    <button class="nav-item {% if active_tab == 'home' %}active{% endif %}" onclick="navigateTo('home')">
+        <div class="nav-icon">
+            <img src="../static/images/home-icon.svg" alt="Home" style="width: 24px; height: 24px;">
+        </div>
+        <div class="nav-text">Home</div>
+    </button>
+    <button class="nav-item {% if active_tab == 'analysis' %}active{% endif %}" onclick="navigateTo('analysis')">
+        <div class="nav-icon">
+            <img src="../static/images/analysis-icon.svg" alt="Analysis" style="width: 24px; height: 24px;">
+        </div>
+        <div class="nav-text">Analysis</div>
+    </button>
+    <button class="nav-item {% if active_tab == 'results' %}active{% endif %}" onclick="navigateTo('results')">
+        <div class="nav-icon">
+            <img src="../static/images/results-icon.svg" alt="Results" style="width: 24px; height: 24px;">
+        </div>
+        <div class="nav-text">Results</div>
+    </button>
+    <button class="nav-item {% if active_tab == 'statistics' %}active{% endif %}" onclick="navigateTo('statistics')">
+        <div class="nav-icon">
+            <img src="../static/images/statistics-icon.svg" alt="Statistics" style="width: 24px; height: 24px;">
+        </div>
+        <div class="nav-text">Statistics</div>
+    </button>
+</nav>
+
+<script>
+    function navigateTo(section) {
+        // Remove active class from all nav items
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        
+        // Add active class to clicked item
+        event.target.closest('.nav-item').classList.add('active');
+        
+        // Navigate to the appropriate page
+        switch(section) {
+            case 'home':
+                window.location.href = 'home.html';
+                break;
+            case 'analysis':
+                window.location.href = 'tester.html';
+                break;
+            case 'results':
+                window.location.href = 'results.html';
+                break;
+            case 'statistics':
+                window.location.href = 'statistics.html';
+                break;
+        }
+    }
+</script>
