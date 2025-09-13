@@ -87,7 +87,10 @@
             display: grid;
             grid-template-columns: 2fr 2fr;
             min-height: 120px;
+            transition: transform 120ms ease, box-shadow 120ms ease;
         }
+        .section:active { transform: scale(0.98); box-shadow: 0 6px 14px rgba(0,0,0,0.08); }
+        .section.is-pressed { transform: scale(0.98); box-shadow: 0 6px 14px rgba(0,0,0,0.08); }
         
         .section-header {
             display: flex;
@@ -294,7 +297,7 @@
         </div>
         
         <div class="content">
-            <div class="section">
+            <button class="section" onclick="finalizeWith('drinking', this)" style="border:none; padding:0; text-align:left; width:100%; display:block; background: transparent;">
                 <div class="section-header">
                     <div class="section-title">Drinking</div>
                         <div class="section-description">
@@ -306,9 +309,9 @@
                         <img src="../static/images/drinking.svg" alt="Drinking" >
                     </div>
                 </div>
-            </div>
+            </button>
             
-            <div class="section">
+            <button class="section" onclick="finalizeWith('irrigation', this)" style="border:none; padding:0; text-align:left; width:100%; display:block; background: transparent;">
                 <div class="section-header">
                     <div class="section-title">Irrigation</div>
                         <div class="section-description">
@@ -320,9 +323,9 @@
                         <img src="../static/images/irrigation.svg" alt="Irrigation" >
                     </div>
                 </div>
-            </div>
+            </button>
             
-            <div class="section">
+            <button class="section" onclick="finalizeWith('human', this)" style="border:none; padding:0; text-align:left; width:100%; display:block; background: transparent;">
                 <div class="section-header">
                     <div class="section-title">Human Use</div>
                         <div class="section-description">
@@ -334,9 +337,9 @@
                         <img src="../static/images/bathing.svg" alt="Bathing" >
                     </div>
                 </div>
-            </div>
+            </button>
 
-                        <div class="section">
+            <button class="section" onclick="finalizeWith('animals', this)" style="border:none; padding:0; text-align:left; width:100%; display:block; background: transparent;">
                 <div class="section-header">
                     <div class="section-title">Animals</div>
                         <div class="section-description">
@@ -348,7 +351,7 @@
                         <img src="../static/images/animals.svg" alt="Animals" >
                     </div>
                 </div>
-            </div>
+            </button>
         </div>
         
         <nav class="bottom-nav">
@@ -392,8 +395,67 @@
             console.log('Navigating to:', section);
         }
         
-        function continueAssessment() {
-            console.log('Continue button clicked');
+        async function finalizeWith(useCase, btn) {
+            try {
+                // Press animation feedback
+                if (btn) {
+                    btn.classList.add('is-pressed');
+                }
+                // Delay before showing loader
+                await new Promise(r => setTimeout(r, 500));
+
+                // Build FormData with files carried from tester
+                const fd = new FormData();
+                const flow = window.__WATER_FLOW__ || {};
+                if (!flow.strip || !flow.water || typeof flow.lat === 'undefined' || typeof flow.lng === 'undefined') {
+                    alert('Missing inputs; please go back and upload again.');
+                    return;
+                }
+                fd.append('strip', flow.strip);
+                fd.append('waterbody', flow.water);
+                fd.append('lat', flow.lat);
+                fd.append('lng', flow.lng);
+                fd.append('use_case', useCase);
+
+                // Full white overlay with looping droplet fill animation
+                const overlay = document.createElement('div');
+                overlay.id = 'loaderOverlay';
+                overlay.style.position = 'fixed';
+                overlay.style.inset = '0';
+                overlay.style.background = '#ffffff';
+                overlay.style.display = 'flex';
+                overlay.style.alignItems = 'center';
+                overlay.style.justifyContent = 'center';
+                overlay.style.zIndex = '9999';
+                overlay.innerHTML = `
+<svg width="120" height="160" viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg" aria-label="Loading">
+  <defs>
+    <clipPath id="droplet-clip">
+      <path d="M100 10 C 70 60, 40 100, 40 140 C 40 180, 66 210, 100 210 C 134 210, 160 180, 160 140 C 160 100, 130 60, 100 10 Z" />
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="200" height="260" fill="#E5ECFF"/>
+  <g clip-path="url(#droplet-clip)">
+    <rect id="fillRect" x="40" y="210" width="120" height="0" fill="#0D50CD">
+      <animate attributeName="y" values="210;70;210" dur="2s" repeatCount="indefinite" />
+      <animate attributeName="height" values="0;140;0" dur="2s" repeatCount="indefinite" />
+    </rect>
+  </g>
+  <path d="M100 10 C 70 60, 40 100, 40 140 C 40 180, 66 210, 100 210 C 134 210, 160 180, 160 140 C 160 100, 130 60, 100 10 Z" fill="none" stroke="#0D50CD" stroke-width="6"/>
+</svg>`;
+                document.body.appendChild(overlay);
+
+                const res = await fetch('/aggregate/finalize/', {
+                    method: 'POST',
+                    body: fd
+                });
+                const data = await res.json();
+                overlay.remove();
+                if (!res.ok) throw new Error(data.error || 'Failed');
+                alert('Finalized!\n' + JSON.stringify(data, null, 2));
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
         }
     </script>
 </body>

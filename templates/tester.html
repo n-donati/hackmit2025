@@ -634,33 +634,35 @@
             const lat = pos.lat();
             const lng = pos.lng();
 
-            const formData = new FormData();
-            formData.append('strip', stripInput.files[0]);
-            // Only send the first water body image for now
-            formData.append('waterbody', waterInput.files[0]);
-            formData.append('lat', lat);
-            formData.append('lng', lng);
+            // Stash the inputs in session first (no analysis yet)
+            const payload = {
+                pending_upload: true,
+                lat: lat,
+                lng: lng,
+            };
 
-            fetch('/aggregate/', {
-                method: 'POST',
-                body: formData
-            })
-            .then(async (res) => {
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) {
-                    const msg = data && data.error ? data.error : 'Unexpected error';
-                    throw new Error(msg);
+            // We'll keep files in memory for finalize step; for now just move UI to choices
+            document.body.style.transition = 'opacity 250ms ease';
+            document.body.style.opacity = '0';
+            setTimeout(async () => {
+                try {
+                    const res = await fetch('/choices/', { method: 'GET' });
+                    const html = await res.text();
+                    document.open('text/html');
+                    document.write(html);
+                    document.close();
+                    // Attach a global to pass files forward for finalize flow
+                    window.__WATER_FLOW__ = {
+                        strip: stripInput.files[0],
+                        water: waterInput.files[0],
+                        lat: lat,
+                        lng: lng,
+                    };
+                } catch (e) {
+                    console.error('Failed to load choices:', e);
+                    window.location.href = '/choices/';
                 }
-                return data;
-            })
-            .then((data) => {
-                console.log('Combined analysis:', data);
-                renderResults(data);
-            })
-            .catch((err) => {
-                console.error('Aggregation error:', err);
-                alert('Failed to analyze. ' + err.message);
-            });
+            }, 250);
         }
 
         function renderResults(data) {
