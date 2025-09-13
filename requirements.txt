@@ -9,3 +9,4 @@ python-dotenv==1.1.1
 smolagents==1.21.3
 litellm==1.77.0
 transformers==4.56.1
+webcolors==24.11.1

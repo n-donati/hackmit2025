@@ -9,6 +9,9 @@ media
 # Backup files # 
 *.bak 
 
+/strips/test/*
+/strips/output/*
+
 # If you are using PyCharm # 
 # User-specific stuff
 .idea/**/workspace.xml
