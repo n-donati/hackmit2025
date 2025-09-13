@@ -1,0 +1,349 @@
+{% extends 'base.html' %}
+
+{% block title %}Water Assessment - Analysis{% endblock %}
+
+{% block extra_css %}
+<style>
+    .section {
+        border: 1px solid rgba(12.83, 80.45, 205.23, 0.20);
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 20px;
+    }
+    
+    .section-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+    
+    .section-icon {
+        width: 38px;
+        height: 38px;
+        background: rgba(12.83, 80.45, 205.23, 0.10);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 12px;
+    }
+    
+    .section-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+    
+    .section-title {
+        color: #020617;
+        font-size: 16px;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+    
+    .upload-area {
+        background: rgba(12.83, 80.45, 205.23, 0.05);
+        border: 0.37px solid #0D50CD;
+        border-radius: 1.48px;
+        padding: 20px;
+        text-align: center;
+        margin-bottom: 12px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    
+    .upload-area:hover {
+        background: rgba(12.83, 80.45, 205.23, 0.08);
+    }
+    
+    .upload-icon {
+        width: 43px;
+        height: 43px;
+        background: #0D50CD;
+        margin: 0 auto 10px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .upload-icon svg {
+        width: 24px;
+        height: 24px;
+        fill: white;
+    }
+    
+    .upload-text {
+        color: #8B8B8B;
+        font-size: 10px;
+        font-weight: 500;
+        margin-bottom: 4px;
+    }
+    
+    .upload-browse {
+        color: #0D50CD;
+        font-size: 10px;
+        font-weight: 500;
+        text-decoration: underline;
+        cursor: pointer;
+    }
+    
+    .section-description {
+        color: #8B8B8B;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.4;
+    }
+    
+    .location-section {
+        position: relative;
+    }
+    
+    .location-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+    }
+    
+    .manual-add {
+        border: 1px solid rgba(12.83, 80.45, 205.23, 0.20);
+        border-radius: 5px;
+        padding: 8px 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+    
+    .manual-add:hover {
+        border-color: #0D50CD;
+    }
+    
+    .manual-add-text {
+        color: #8B8B8B;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    
+    .map-container {
+        position: relative;
+    }
+    
+    .map-area {
+        background: #E5E3DF;
+        border-radius: 5px;
+        height: 200px;
+        position: relative;
+        overflow: hidden;
+        transition: height 0.3s ease;
+    }
+    
+    .map-area.maximized {
+        height: 400px;
+    }
+    
+    .maximize-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 8px;
+        cursor: pointer;
+        z-index: 10;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: background-color 0.2s;
+    }
+    
+    .maximize-btn:hover {
+        background: #f5f5f5;
+    }
+    
+    .maximize-btn svg {
+        width: 16px;
+        height: 16px;
+        fill: #666;
+    }
+    
+    .continue-btn {
+        background: #0D50CD;
+        border-radius: 10px;
+        padding: 12px;
+        margin: 20px 23px;
+        border: none;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    
+    .continue-btn:hover {
+        background: #0a42a8;
+    }
+    
+    .continue-btn-text {
+        color: white;
+        font-size: 18px;
+        font-weight: 600;
+        text-align: center;
+        width: 100%;
+    }
+    
+    .file-input {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <div class="header-icon">
+        <img src="../static/images/test.svg" alt="Test Icon" style="width: 40px; height: 40px;">
+    </div>
+    <h1>Assess Your Water</h1>
+    <p>Test strips, photos, and location in one flow.</p>
+</div>
+
+<div class="content">
+    <div class="section">
+        <div class="section-header">
+            <div class="section-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                </svg>
+            </div>
+            <div class="section-title">Test Strip</div>
+        </div>
+        <div class="upload-area" onclick="document.getElementById('testStripInput').click()">
+            <div class="upload-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M9.5 13.5l-3-3 3-3 1.5 1.5-4.5 4.5 4.5 4.5-1.5 1.5z"/>
+                </svg>
+            </div>
+            <div class="upload-text">Upload your picture here</div>
+            <div class="upload-browse">Browse</div>
+        </div>
+        <input type="file" id="testStripInput" class="file-input" accept="image/*">
+        <div class="section-description">
+            Take a photo of your test strip to analyze key water contaminants.
+        </div>
+    </div>
+    
+    <div class="section">
+        <div class="section-header">
+            <div class="section-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                </svg>
+            </div>
+            <div class="section-title">Water body</div>
+        </div>
+        <div class="upload-area" onclick="document.getElementById('waterBodyInput').click()">
+            <div class="upload-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M9.5 13.5l-3-3 3-3 1.5 1.5-4.5 4.5 4.5 4.5-1.5 1.5z"/>
+                </svg>
+            </div>
+            <div class="upload-text">Upload your pictures here</div>
+            <div class="upload-browse">Browse</div>
+        </div>
+        <input type="file" id="waterBodyInput" class="file-input" accept="image/*" multiple>
+        <div class="section-description">
+            Upload clear pictures of the water body for a visual assessment.
+        </div>
+    </div>
+    
+    <div class="section location-section">
+        <div class="section-header">
+            <div class="location-header">
+                <div style="display: flex; align-items: center;">
+                    <div class="section-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                        </svg>
+                    </div>
+                    <div class="section-title">Location</div>
+                </div>
+                <div class="manual-add" onclick="addLocationManually()">
+                    <div style="width: 16px; height: 16px; background: #0D50CD;"></div>
+                    <span class="manual-add-text">Add manually</span>
+                </div>
+            </div>
+        </div>
+        <div class="map-container">
+            <div class="map-area" id="mapArea">
+                <button class="maximize-btn" onclick="toggleMapSize()" id="maximizeBtn">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                    </svg>
+                </button>
+                <img src="../static/images/map-placeholder.jpg" alt="Map" style="width: 100%; height: 100%; object-fit: cover;">
+            </div>
+        </div>
+    </div>
+</div>
+
+<button class="continue-btn" onclick="continueAssessment()">
+    <div class="continue-btn-text">Continue</div>
+</button>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Set active tab for navbar
+    const activeTab = 'analysis';
+    
+    let isMapMaximized = false;
+    
+    function continueAssessment() {
+        console.log('Continue button clicked');
+        // Add your continue logic here
+    }
+    
+    function addLocationManually() {
+        const location = prompt('Enter location manually:');
+        if (location) {
+            console.log('Manual location:', location);
+            // Handle manual location input
+        }
+    }
+    
+    function toggleMapSize() {
+        const mapArea = document.getElementById('mapArea');
+        const maximizeBtn = document.getElementById('maximizeBtn');
+        
+        isMapMaximized = !isMapMaximized;
+        
+        if (isMapMaximized) {
+            mapArea.classList.add('maximized');
+            maximizeBtn.innerHTML = `
+                <svg viewBox="0 0 24 24">
+                    <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+                </svg>
+            `;
+        } else {
+            mapArea.classList.remove('maximized');
+            maximizeBtn.innerHTML = `
+                <svg viewBox="0 0 24 24">
+                    <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                </svg>
+            `;
+        }
+    }
+    
+    // Handle file uploads
+    document.getElementById('testStripInput').addEventListener('change', function(e) {
+        if (e.target.files.length > 0) {
+            console.log('Test strip file selected:', e.target.files[0].name);
+            // Handle file upload
+        }
+    });
+    
+    document.getElementById('waterBodyInput').addEventListener('change', function(e) {
+        if (e.target.files.length > 0) {
+            console.log('Water body files selected:', e.target.files.length);
+            // Handle multiple file uploads
+        }
+    });
+</script>
+{% endblock %}
