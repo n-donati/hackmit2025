@@ -5,6 +5,14 @@ import base64
 import tempfile
 import webcolors
 
+class _NoopLogger:
+    def info(self, *args, **kwargs):
+        pass
+    def exception(self, *args, **kwargs):
+        pass
+
+logger = _NoopLogger()
+
 # Constants from crop_strip.py
 GAUSSIAN_KERNEL = (9, 9)
 GAUSSIAN_SIGMA = 0
@@ -94,29 +102,37 @@ test_data = {
 
 # Functions from crop_strip.py
 def load_image(image_path):
+    logger.info(f"Loading image from path: {image_path}")
     img = cv2.imread(image_path)
     if img is None:
         raise ValueError(f"Could not load image from {image_path}")
+    logger.info(f"Loaded image shape: {img.shape}")
     return img
 
 def preprocess_image(img):
+    logger.info("Preprocessing image: Gaussian blur and grayscale")
     img_blur = cv2.GaussianBlur(img, GAUSSIAN_KERNEL, GAUSSIAN_SIGMA)
     gray_img = cv2.cvtColor(img_blur, cv2.COLOR_BGR2GRAY)
     return gray_img
 
 def detect_edges(gray_img):
+    logger.info("Detecting edges (Laplacian -> threshold -> median)")
     laplacian_val = cv2.Laplacian(gray_img, cv2.CV_32F)
     _, laplacian_th = cv2.threshold(laplacian_val, thresh=LAPLACIAN_THRESHOLD, maxval=255, type=cv2.THRESH_BINARY)
     laplacian_med = cv2.medianBlur(laplacian_th, MEDIAN_KERNEL)
     return np.array(laplacian_med, dtype=np.uint8)
 
 def detect_lines(edge_img, rho, theta, threshold):
+    logger.info(f"HoughLines with rho={rho}, theta={theta}, threshold={threshold}")
     lines = cv2.HoughLines(edge_img, rho, theta, threshold)
     if lines is None or len(lines) == 0:
+        logger.info("No lines detected")
         return []
+    logger.info(f"Detected {len(lines)} lines")
     return lines.tolist()
 
 def filter_secondary_lines(secondary_lines, main_rho, main_theta):
+    logger.info(f"Filtering secondary lines against main_rho={main_rho}, main_theta={main_theta}")
     filtered = []
     for line in secondary_lines:
         rho, theta = line[0]
@@ -125,6 +141,7 @@ def filter_secondary_lines(secondary_lines, main_rho, main_theta):
         rho_not_close = abs(rho - main_rho) > RHO_TOLERANCE
         if theta_aligned and rho_not_close:
             filtered.append(line)
+    logger.info(f"Secondary lines kept: {len(filtered)} / {len(secondary_lines)}")
     return filtered
 
 def get_line_points(rho, theta, width, height):
@@ -156,6 +173,7 @@ def get_line_points(rho, theta, width, height):
     return points[:2]
 
 def create_polygon(points1, points2):
+    logger.info(f"Creating polygon from points: {points1} and {points2}")
     all_points = points1 + points2
     if len(all_points) < 4:
         raise ValueError("Not enough intersection points")
@@ -165,6 +183,7 @@ def create_polygon(points1, points2):
     return np.array([top_points[0], top_points[1], bottom_points[1], bottom_points[0]], dtype=np.int32)
 
 def crop_to_strip(cropped_img):
+    logger.info("Cropping to strip region via thresholding and contour analysis")
     gray = cv2.cvtColor(cropped_img, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(gray, THRESH_VALUE, 255, cv2.THRESH_BINARY)
     kernel = np.ones((KERNEL_SIZE, KERNEL_SIZE), np.uint8)
@@ -182,14 +201,17 @@ def crop_to_strip(cropped_img):
         all_y.extend([y, y + h])
     x_min, y_min = min(all_x), min(all_y)
     x_max, y_max = max(all_x), max(all_y)
+    logger.info(f"Bounding box for strip: x[{x_min},{x_max}] y[{y_min},{y_max}]")
     return cropped_img[y_min:y_max, x_min:x_max]
 
 def ensure_vertical(img):
     if img.shape[1] > img.shape[0]:
+        logger.info("Rotating strip 90 deg to ensure vertical orientation")
         return cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
     return img
 
 def crop_strip(image_path):
+    logger.info("Starting crop_strip pipeline")
     img = load_image(image_path)
     height, width = img.shape[:2]
 
@@ -200,12 +222,14 @@ def crop_strip(image_path):
     if not main_lines:
         raise ValueError("No main lines detected")
     main_line = main_lines[0][0]
+    logger.info(f"Main line selected: rho={main_line[0]}, theta={main_line[1]}")
 
     secondary_lines = detect_lines(edge_img, SECONDARY_RHO, SECONDARY_THETA, SECONDARY_THRESHOLD)
     filtered_lines = filter_secondary_lines(secondary_lines, main_line[0], main_line[1])
     if not filtered_lines:
         raise ValueError("No secondary lines kept")
     secondary_line = filtered_lines[0][0]
+    logger.info(f"Secondary line selected: rho={secondary_line[0]}, theta={secondary_line[1]}")
 
     points1 = get_line_points(main_line[0], main_line[1], width, height)
     points2 = get_line_points(secondary_line[0], secondary_line[1], width, height)
@@ -221,6 +245,7 @@ def crop_strip(image_path):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     output_path = os.path.join(OUTPUT_DIR, OUTPUT_FILE)
     cv2.imwrite(output_path, final_cropped)
+    logger.info(f"Cropped strip written to: {output_path}")
     return output_path
 
 # Functions from get_colors.py
@@ -229,9 +254,17 @@ def closest_color(requested_rgb):
     closest_name = None
     closest_hex = None
 
-    for name in webcolors.names("css3"):
-        hex_value = webcolors.name_to_hex(name, spec="css3")
-        r_c, g_c, b_c = webcolors.hex_to_rgb(hex_value)
+    try:
+        names_iter = list(webcolors.names("css3"))
+    except Exception:
+        names_iter = list(getattr(webcolors, "CSS3_NAMES_TO_HEX", {}).keys())
+
+    for name in names_iter:
+        try:
+            hex_value = webcolors.name_to_hex(name, spec="css3")
+            r_c, g_c, b_c = webcolors.hex_to_rgb(hex_value)
+        except Exception:
+            continue
         diff = (r_c - requested_rgb[0]) ** 2 + (g_c - requested_rgb[1]) ** 2 + (b_c - requested_rgb[2]) ** 2
 
         if min_diff is None or diff < min_diff:
@@ -261,6 +294,7 @@ def get_band_color(image, y_start, y_end, center_x, band_width=15, white_thresh=
     return avg_rgb, (x_start, y_start, x_end, y_end)
 
 def get_colors(image_path):
+    logger.info(f"Extracting colors from image: {image_path}")
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image file not found: {image_path}")
 
@@ -288,7 +322,9 @@ def get_colors(image_path):
             "hex": color_hex,
             "color_name": color_name
         })
+        logger.info(f"Section {i}: avg_rgb={avg_rgb} name={color_name} hex={color_hex}")
 
+    logger.info(f"Total sections processed: {len(colors_detected)}")
     return colors_detected
 
 # Functions from get_values.py
@@ -304,21 +340,24 @@ def closest_color_index(rgb, color_list):
         if diff < min_diff:
             min_diff = diff
             closest_idx = i
+    logger.info(f"Closest color index for {rgb} -> {closest_idx}")
     return closest_idx
 
 def map_to_value(index, values_list):
     return values_list[index]
 
 def get_values(colors):
+    logger.info("Mapping detected colors to test values")
     if not colors:
         return {}
     
     if is_white_gray(colors[0]["rgb"]):
+        logger.info("Detected white/gray at beginning; reversing colors list")
         colors.reverse()
     elif is_white_gray(colors[-1]["rgb"]):
-        pass
+        logger.info("Detected white/gray at end; keeping order")
     else:
-        pass
+        logger.info("No obvious white/gray reference; keeping order unchanged")
     
     colors.pop()  # Remove last
     
@@ -337,33 +376,56 @@ def get_values(colors):
             results[test_name] = {
                 "value": value
             }
+            logger.info(f"Test '{test_name}': rgb={color['rgb']} -> index={idx} -> value={value}")
         else:
             results[f"Extra {i+1}"] = {
                 "value": None
             }
+            logger.info(f"Extra section {i+1}: no mapping available")
     
+    logger.info(f"Computed values for {len(results)} tests")
     return results
 
 # Main processing function (combines all)
 def process_image(base64_image):
+    logger.info(f"Starting process_image with base64 length={len(base64_image) if base64_image else 0}")
     try:
         image_data = base64.b64decode(base64_image)
     except Exception as e:
+        logger.exception("Base64 decode failed")
         raise ValueError("Invalid base64 image")
     
     with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as temp_file:
         temp_file.write(image_data)
         temp_path = temp_file.name
+    logger.info(f"Wrote temp image to {temp_path} ({len(image_data)} bytes)")
     
+    cropped_path = None
+    used_path = None
     try:
-        cropped_path = crop_strip(temp_path)
-        
-        colors = get_colors(cropped_path)
-        
+        try:
+            logger.info("Attempting crop_strip")
+            cropped_path = crop_strip(temp_path)
+            used_path = cropped_path
+            logger.info(f"Crop success -> {cropped_path}")
+        except Exception:
+            # Fallback: attempt to analyze the original image without cropping
+            logger.exception("Crop failed; falling back to original image for color extraction")
+            used_path = temp_path
+
+        logger.info(f"Using path for color extraction: {used_path}")
+        colors = get_colors(used_path)
+        logger.info(f"Detected {len(colors)} color bands")
         values = get_values(colors)
-        
+        logger.info("Finished mapping colors to values")
         return values
     finally:
-        os.unlink(temp_path)
-        if os.path.exists(cropped_path):
-            os.unlink(cropped_path)
+        try:
+            os.unlink(temp_path)
+        except Exception:
+            pass
+        if cropped_path and cropped_path != temp_path and os.path.exists(cropped_path):
+            try:
+                os.unlink(cropped_path)
+            except Exception:
+                pass
