@@ -87,6 +87,14 @@
             display: grid;
             grid-template-columns: 2fr 2fr;
             min-height: 120px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .section:hover {
+            background-color: #0a42a8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(13, 80, 205, 0.3);
         }
         
         .section-header {
@@ -289,12 +297,12 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>What is your objective</h1>
+            <h1>What is your objective?</h1>
             <p>Test strips, photos, and location in one flow.</p>
         </div>
         
         <div class="content">
-            <div class="section">
+            <div class="section" onclick="selectChoice('drinking')">
                 <div class="section-header">
                     <div class="section-title">Drinking</div>
                         <div class="section-description">
@@ -308,11 +316,11 @@
                 </div>
             </div>
             
-            <div class="section">
+            <div class="section" onclick="selectChoice('irrigation')">
                 <div class="section-header">
                     <div class="section-title">Irrigation</div>
                         <div class="section-description">
-                    Test if it’s good for watering plants and crops.
+                    Test if it's good for watering plants and crops.
                 </div>
                 </div>
                 <div>
@@ -322,7 +330,7 @@
                 </div>
             </div>
             
-            <div class="section">
+            <div class="section" onclick="selectChoice('cleaning')">
                 <div class="section-header">
                     <div class="section-title">Human Use</div>
                         <div class="section-description">
@@ -336,7 +344,7 @@
                 </div>
             </div>
 
-                        <div class="section">
+            <div class="section" onclick="selectChoice('animals')">
                 <div class="section-header">
                     <div class="section-title">Animals</div>
                         <div class="section-description">
@@ -390,6 +398,20 @@
             event.target.closest('.nav-item').classList.add('active');
             
             console.log('Navigating to:', section);
+        }
+        
+        function selectChoice(choice) {
+            console.log('Selected choice:', choice);
+            
+            // Show loading or processing state (optional)
+            const selectedSection = event.target.closest('.section');
+            selectedSection.style.background = '#0a42a8';
+            
+            // Simulate analysis processing time
+            setTimeout(() => {
+                // Navigate to water-health.html with the choice parameter
+                window.location.href = `water-health.html?choice=${choice}`;
+            }, 500);
         }
         
         function continueAssessment() {

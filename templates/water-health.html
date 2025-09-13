@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Water Health Assessment - Results</title>
+<style>
+  :root{
+    --blue:#0D50CD;
+    --blue-700:#0c49bb;
+    --ink:#020617;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--ink);
+    background:#fff;
+    min-height:100vh;
+    display:flex;
+  }
+  .container{
+    max-width:390px; width:100%; margin:0 auto; position:relative; background:#fff;
+    min-height:100vh; display:flex; flex-direction:column;
+  }
+  @media (min-width:768px){
+    .container{max-width:600px; margin:20px auto; border-radius:20px; box-shadow:0 10px 30px rgba(0,0,0,.08); overflow:hidden}
+  }
+
+
+  .hero{
+    position:relative;
+    background:var(--blue);
+    padding:32px 24px 120px;
+    overflow:hidden;
+  }
+  .hero h1{
+    color:#fff; font-weight:800; line-height:1.05;
+    font-size:clamp(32px, 8vw, 44px);
+    max-width:14ch; position:relative; z-index:1;
+  }
+  .hero p{
+    color:rgba(255,255,255,.85);
+    font-size:15px; margin-top:10px; max-width:26ch; font-weight:500;
+    position:relative; z-index:1;
+  }
+
+
+  .hero-decor{
+    position:absolute; right:-20px; top:-24px;
+    width:clamp(180px, 45vw, 280px);
+    opacity:.28;
+    filter:brightness(0) invert(1); 
+    transform:rotate(6deg);
+    pointer-events:none; -webkit-user-drag:none; user-select:none;
+    z-index:0;
+  }
+
+  .score-badge{
+    position:absolute; right:28px; top:92px;
+    font-size:62px; font-weight:800; color:#fff; letter-spacing:.5px;
+    z-index:1;
+  }
+  @media (max-width: 390px) {
+    .score-badge { right:20px; top:80px; font-size:48px; }
+    .hero h1 { max-width:12ch; }
+    .hero p { max-width:20ch; }
+  }
+  @media (max-width: 320px) {
+    .score-badge { right:16px; top:70px; font-size:40px; }
+    .hero h1 { max-width:10ch; }
+    .hero p { max-width:18ch; }
+  }
+
+  /* white warning pill overlapping hero bottom */
+  .warning-card{
+    position:relative; z-index:2;
+    margin: -44px 24px 18px;
+    background:#fff; color:#0b1b39; border-radius:14px;
+    padding:14px 16px; display:flex; gap:10px; align-items:flex-start;
+    box-shadow:0 8px 18px rgba(13,80,205,.15);
+  }
+  .warn-icon{
+    width:28px; height:28px; display:grid; place-items:center;
+    border-radius:8px; background:rgba(13,80,205,.12); flex:0 0 28px;
+  }
+  .warn-icon img{width:18px; height:18px; filter:invert(20%) sepia(63%) saturate(2913%) hue-rotate(209deg) brightness(94%) contrast(101%); pointer-events:none; -webkit-user-drag:none; user-select:none}
+  .warning-card .txt{font-size:13.5px; font-weight:600; line-height:1.35}
+
+  .content{padding:6px 24px 110px; flex:1}
+
+
+  .dangers{
+    color:#fff; border-radius:16px; padding:20px; margin:14px 0 14px;
+    position:relative; overflow:hidden;
+
+
+    background:
+      url("../static/images/WavesImage.svg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  .dangers::before{ content:none; }
+
+  .dangers h2{font-size:20px; font-weight:700; margin-bottom:10px}
+  .dangers p{font-size:14px; line-height:1.5; color:rgba(255,255,255,.9); margin-bottom:14px}
+  .btn-light{
+    background:#fff; color:var(--blue); border:0; border-radius:10px; padding:10px 16px;
+    font-weight:700; font-size:14px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+    position:relative; z-index:1;
+  }
+  .btn-light::after{content:"→"; pointer-events:none}
+  .btn-light:hover{background:#f5f7fb}
+
+
+  .purify{
+    background:#fff; border-radius:16px; padding:18px; display:grid; grid-template-columns:1fr 120px; gap:14px;
+    border:1px solid rgba(13,80,205,.12);
+  }
+  .purify h3{font-size:20px; font-weight:800; color:#0b1b39; margin-bottom:6px}
+  .purify p{font-size:14px; color:#334155; line-height:1.5; margin-bottom:12px}
+  .btn-outline{
+    background:#fff; color:var(--blue); border:1px solid rgba(13,80,205,.25);
+    border-radius:10px; padding:10px 14px; font-weight:700; font-size:14px; cursor:pointer;
+  }
+  .btn-outline:hover{background:#f8fafc}
+  .purify img{
+    width:100%; height:100%; object-fit:cover; border-radius:10px; pointer-events:none; -webkit-user-drag:none; user-select:none
+  }
+
+
+  .bottom-nav{
+    position:fixed; left:50%; transform:translateX(-50%);
+    bottom:0; width:100%; max-width:390px; background:#fff;
+    border-top:1px solid rgba(13,80,205,.12);
+    display:flex; justify-content:space-between; padding:12px 18px; z-index:50;
+  }
+  @media (min-width:768px){ .bottom-nav{max-width:600px; border-radius:0 0 20px 20px}}
+  .nav-item{
+    flex:1; display:flex; flex-direction:column; gap:2px; align-items:center;
+    background:none; border:0; padding:4px 2px; cursor:pointer; border-radius:8px;
+  }
+  .nav-item:hover{background:rgba(13,80,205,.06)}
+  .nav-item .nav-text{font-size:12px; font-weight:600; color:#0b1b39}
+  .nav-icon{width:22px; height:22px; margin-bottom:2px}
+  .nav-icon img{width:100%; height:100%; filter:brightness(0)}
+  .nav-item.active .nav-text{color:var(--blue)}
+  .nav-item.active .nav-icon img{
+    filter:brightness(0) saturate(100%) invert(27%) sepia(51%) saturate(2878%) hue-rotate(346deg) brightness(104%) contrast(97%);
+  }
+
+
+  img, svg{pointer-events:none; -webkit-user-drag:none; user-select:none}
+  @media (max-width:390px){ .container{max-width:100%} }
+</style>
+</head>
+<body>
+  <div class="container">
+
+    <header class="hero" aria-label="Overview">
+      <img class="hero-decor" src="../static/images/Droplet.svg" alt="" aria-hidden="true">
+      <h1>Your water’s health</h1>
+      <p>Discover your water’s quality, identify risks, and get guidance.</p>
+      <div class="score-badge">55%</div>
+    </header>
+
+
+    <section class="warning-card" role="note" aria-live="polite">
+      <div class="warn-icon">
+        <img src="../static/images/Droplet.svg" alt="Droplet">
+      </div>
+      <div class="txt" id="warning-text">
+        Unsafe to drink; treat before use. Can be used for irrigation, cleaning, or animals after proper treatment.
+      </div>
+    </section>
+
+    <main class="content">
+
+      <section class="dangers" aria-labelledby="dangers-title">
+        <h2 id="dangers-title">Potential Dangers</h2>
+        <p id="dangers-text">
+          This water may contain bacteria, viruses, heavy metals, or chemical contaminants. Consuming it can lead to gastrointestinal illness, skin irritation, or long-term health issues.
+        </p>
+        <button class="btn-light" onclick="learnMore()">Learn more</button>
+      </section>
+
+  
+      <section class="purify" aria-labelledby="irrigation-title">
+        <div>
+          <h3 id="irrigation-title">Purify for Irrigation Use</h3>
+          <p id="irrigation-text">Treat the water in three simple steps: filter, disinfect, and use for irrigation.</p>
+          <button class="btn-outline plan-btn" onclick="getDetailedPlan()">Get a detailed plan</button>
+        </div>
+        <img src="../static/images/irrigation.jpg" alt="Irrigation plants">
+      </section>
+    </main>
+
+
+    <nav class="bottom-nav" aria-label="Primary">
+      <button class="nav-item" onclick="navigateTo('home', event)">
+        <div class="nav-icon"><img src="../static/images/home.svg" alt=""></div>
+        <div class="nav-text">Home</div>
+      </button>
+      <button class="nav-item active" onclick="navigateTo('analysis', event)">
+        <div class="nav-icon"><img src="../static/images/analysis.svg" alt=""></div>
+        <div class="nav-text">Analysis</div>
+      </button>
+      <button class="nav-item" onclick="navigateTo('results', event)">
+        <div class="nav-icon"><img src="../static/images/result.svg" alt=""></div>
+        <div class="nav-text">Results</div>
+      </button>
+      <button class="nav-item" onclick="navigateTo('statistics', event)">
+        <div class="nav-icon"><img src="../static/images/stat.svg" alt=""></div>
+        <div class="nav-text">Statistics</div>
+      </button>
+    </nav>
+  </div>
+
+  <script>
+
+    window.navigateTo = function(section, e){
+      document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+      if (e && e.currentTarget) e.currentTarget.classList.add('active');
+      switch(section){
+        case 'home':       window.location.href='home.html'; break;
+        case 'analysis':   window.location.href='tester-standalone.html'; break;
+        case 'results':    window.location.href='water-health.html'; break;
+        case 'statistics': window.location.href='statistics.html'; break;
+      }
+    };
+
+    window.learnMore = function(){
+      const choice = window.currentChoice || 'irrigation';
+      alert('Feature not installed yet');
+    };
+
+    window.getDetailedPlan = function(){
+      const choice = window.currentChoice || 'irrigation';
+      alert(`Get detailed plan for ${choice}`);
+    };
+
+    const choiceConfigs = {
+      drinking: {
+        title: "Your water's health",
+        warningText: "Unsafe to drink without treatment. Contains contaminants that could cause serious health issues if consumed directly.",
+        dangersTitle: "Health Risks",
+        dangersText: "This water may contain harmful bacteria, viruses, heavy metals, or chemical pollutants. Direct consumption can lead to gastrointestinal illness, poisoning, or long-term health complications.",
+        actionTitle: "Purify for Drinking Use",
+        actionText: "Follow a comprehensive 5-step purification process: filter, boil, disinfect, test, and store safely.",
+        actionButton: "Get purification guide",
+        image: "../static/images/drinking.svg"
+      },
+      irrigation: {
+        title: "Your water's health",
+        warningText: "Unsafe to drink; treat before use. Can be used for irrigation, cleaning, or animals after proper treatment.",
+        dangersTitle: "Potential Dangers",
+        dangersText: "This water may contain bacteria, viruses, heavy metals, or chemical contaminants. Consuming it can lead to gastrointestinal illness, skin irritation, or long-term health issues.",
+        actionTitle: "Purify for Irrigation Use",
+        actionText: "Treat the water in three simple steps: filter, disinfect, and use for irrigation.",
+        actionButton: "Get a detailed plan",
+        image: "../static/images/IrrigationImage.svg"
+      },
+      cleaning: {
+        title: "Your water's health",
+        warningText: "Safe for cleaning and bathing with precautions. Avoid prolonged skin contact and ensure proper ventilation.",
+        dangersTitle: "Usage Precautions",
+        dangersText: "While suitable for cleaning, this water may cause skin irritation with extended exposure. Contains mild contaminants that could affect sensitive skin or respiratory systems.",
+        actionTitle: "Optimize for Human Use",
+        actionText: "Simple treatment steps: basic filtration and pH balancing for safe cleaning and bathing.",
+        actionButton: "Get treatment steps",
+        image: "../static/images/Droplet.svg"
+      },
+      animals: {
+        title: "Your water's health",
+        warningText: "Requires treatment before giving to animals. Some contaminants may be harmful to pets and livestock.",
+        dangersTitle: "Animal Health Risks",
+        dangersText: "This water contains elements that could affect animal health, including bacteria and chemical residues. Untreated consumption may lead to digestive issues or illness in pets and livestock.",
+        actionTitle: "Prepare for Animal Use",
+        actionText: "Basic treatment protocol: filter debris, neutralize harmful elements, and test safety levels.",
+        actionButton: "Get animal-safe guide",
+        image: "../static/images/animals.svg"
+      }
+    };
+
+    function getURLParameter(name){
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(name);
+    }
+
+    function initializePage(){
+      const choice=getURLParameter('choice')||'irrigation';
+      const cfg=choiceConfigs[choice];
+      if(!cfg) return;
+      document.title=`Water Health Assessment - ${cfg.title}`;
+      document.getElementById('warning-text').textContent=cfg.warningText;
+      document.getElementById('dangers-title').textContent=cfg.dangersTitle;
+      document.getElementById('dangers-text').textContent=cfg.dangersText;
+      document.getElementById('irrigation-title').textContent=cfg.actionTitle;
+      document.getElementById('irrigation-text').textContent=cfg.actionText;
+      document.querySelector('.plan-btn').textContent=cfg.actionButton;
+
+      const actionImage = document.querySelector('.purify img');
+      if (actionImage && cfg.image) {
+        actionImage.src = cfg.image;
+        actionImage.alt = `${cfg.actionTitle} illustration`;
+      }
+      window.currentChoice=choice;
+    }
+    document.addEventListener('DOMContentLoaded', initializePage);
+  </script>
+</body>
+</html>
