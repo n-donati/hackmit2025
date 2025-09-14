@@ -22,5 +22,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('waterbody/', include('waterbody.urls')),
     path('strips/', include('strips.urls')),
-    path('location/', include('location.urls')),
+    # path('location/', include('location.urls')),
 ]

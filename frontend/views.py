@@ -11,6 +11,7 @@ import sys
 from strips.process_image import process_image as process_strip_base64
 from strips.utils import build_strip_final
 from waterbody.utils import analyze_water_image
+from location.utils import static_map_image, analyze_satellite_image
 from .finalize_utils import finalize_report
 
 
@@ -207,22 +208,27 @@ def aggregate_finalize(request):
                 agg_logger.exception("[FINALIZE] Waterbody analysis failed: %s", str(exc))
                 water_result = None
 
+            # Analyze satellite imagery
             static_map_url = f"/location/aerial/?lat={latitude}&lng={longitude}&zoom=16&size=640x400&maptype=satellite"
+            satellite_result = None
+            try:
+                satellite_image = static_map_image(static_map_url)
+                satellite_result = analyze_satellite_image(satellite_image) if satellite_image else None
+            except Exception as exc:
+                agg_logger.exception("[FINALIZE] Satellite analysis failed: %s", str(exc))
+                satellite_result = None
             combined = {
                 'strip': build_strip_final(strip_result or {}),
                 'waterbody': water_result or None,
-                'location': {
-                    'lat': latitude,
-                    'lng': longitude,
-                    'static_map_url': static_map_url,
-                },
+                'satellite': satellite_result or None,
                 'errors': {
                     'strip': None if strip_result else 'strip_failed',
                     'waterbody': None if water_result else 'waterbody_failed',
+                    'satellite': None if satellite_result else 'satellite_failed'
                 }
             }
             try:
-                agg_logger.info("[FINALIZE] Combined summary: has_strip=%s has_water=%s", bool(strip_result), bool(water_result))
+                agg_logger.info("[FINALIZE] Combined summary: has_strip=%s has_water=%s has_satellite=%s", bool(strip_result), bool(water_result), bool(satellite_result))
             except Exception:
                 pass
             try:
