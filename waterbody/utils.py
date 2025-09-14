@@ -1,5 +1,5 @@
 from django.conf import settings
-from google import genai
+from anthropic import Anthropic
 from PIL import Image
 from smolagents import CodeAgent, LiteLLMModel, Tool
 import io
@@ -10,6 +10,7 @@ import sys
 import hashlib
 from contextlib import contextmanager
 import time
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -178,31 +179,56 @@ def analyze_water_image(image_bytes: bytes) -> dict:
 
         global _VISION_CLIENT_SINGLETON
         if _VISION_CLIENT_SINGLETON is None:
-            _VISION_CLIENT_SINGLETON = genai.Client(api_key=settings.GEMINI_API_KEY)
+            # Initialize Anthropic client - defaults to os.environ.get("ANTHROPIC_API_KEY")
+            _VISION_CLIENT_SINGLETON = Anthropic()
         vision_client = _VISION_CLIENT_SINGLETON
         vision_prompt = (
             "Describe this waterbody image. Be concise (<=120 words). Include: surroundings; visible pollution sources; water appearance (color, clarity, surface patterns); weather/lighting; any explicit strong evidence (trash piles, discharge pipes, oil sheen, dead fish/wildlife, algal mats)."
         )
         t_prep = time.time()
-        vision_response = vision_client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=[vision_prompt, image],
-            config={
-                'temperature': 0.1,
-                'top_p': 0.9,
-            }
+        
+        # Convert image to base64 for Claude
+        img_buffer = io.BytesIO()
+        image.save(img_buffer, format='JPEG')
+        img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+        
+        print(f"[WATERBODY] Starting Claude vision analysis...")
+        vision_response = vision_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": vision_prompt
+                        },
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/jpeg",
+                                "data": img_base64
+                            }
+                        }
+                    ]
+                }
+            ]
         )
-        scene_description = vision_response.text or ""
+        scene_description = vision_response.content[0].text or ""
         t_vision = time.time()
         logger.info("[WATERBODY] prep=%.2fs vision=%.2fs", t_prep - t0, t_vision - t_prep)
 
-        if getattr(settings, 'GEMINI_API_KEY', None) and 'GEMINI_API_KEY' not in os.environ:
-            os.environ['GEMINI_API_KEY'] = settings.GEMINI_API_KEY
+        # Ensure ANTHROPIC_API_KEY is set for LiteLLM
+        if not os.environ.get('ANTHROPIC_API_KEY'):
+            # LiteLLM expects ANTHROPIC_API_KEY environment variable
+            pass  # Assume it's already set
 
         global _MODEL_SINGLETON
         if _MODEL_SINGLETON is None:
             _MODEL_SINGLETON = LiteLLMModel(
-                model_id="gemini/gemini-2.5-flash",
+                model_id="claude-sonnet-4-20250514",
                 temperature=0,
                 request_timeout=25,
             )
@@ -214,10 +240,6 @@ def analyze_water_image(image_bytes: bytes) -> dict:
             additional_authorized_imports=["json"],
             max_steps=1,
             verbosity_level=0,
-            instructions=(
-                "Single-pass execution. Do not plan, reflect, or call tools. "
-                "Output final_answer immediately in the requested JSON format."
-            ),
         )
 
         final_prompt = (

@@ -5,6 +5,7 @@ import os
 from typing import Dict, Any, List
 import hashlib
 import time
+import requests
 
 # Plain-text reference ranges for strip analytes (for qualitative guidance only)
 _REFERENCE_RANGES_TEXT = (
@@ -87,122 +88,92 @@ def _ensure_model() -> LiteLLMModel:
 
 _FINALIZE_CACHE = {}
 _FINALIZE_ORDER = []
+_API_RESPONSE_CACHE = {}  # Shared cache for full API responses
 
 def finalize_report(combined: Dict[str, Any], use_case: str) -> Dict[str, Any]:
     """
-    Use a small smolagents flow to synthesize the final JSON from combined analysis + user use-case.
+    Use the external API endpoint to synthesize the final JSON from combined analysis + user use-case.
     Returns a Python dict with the exact keys required by the UI.
     """
-    model = _ensure_model()
-    agent = CodeAgent(
-        tools=[],
-        model=model,
-        additional_authorized_imports=["json"],
-        max_steps=1,
-        verbosity_level=0,
-        instructions=(
-            "Single-pass execution. Do not plan, reflect, or call tools. "
-            "Output final_answer immediately in the requested JSON format."
-        ),
-    )
-
-    combined_json = json.dumps(combined, ensure_ascii=False)
-    strip_context_text = _format_strip_context_text(combined)
-    # Embed plain-text guidance directly in the prompt so the agent sees it without parsing
-    prompt = (
-        "Given combined_json (string), optional location hint at data.location.hint, and selected_use in {drinking, irrigation, human, animals}, produce dict result with EXACT KEYS: \n"
-        "- water_health_percent: '<int>%';\n"
-        "- current_water_use_cases: one concise sentence;\n"
-        "- potential_dangers: one concise sentence;\n"
-        "- purify_for_selected_use: one concise sentence tailored to selected_use.\n"
-        "Policy: realistic, non-alarmist; if evidence weak, use 55–75%. Weigh strong visual evidence higher; consider benign causes. Tailor phrasing to selected_use. If selected_use == 'human', interpret as non-consumptive hygiene/cleaning only (e.g., showering, bathing, laundry); never recommend or imply drinking. If location.hint exists (e.g., country/region), you may adapt guidance to typical local constraints; do not hallucinate precise places.\n"
-        "Strip guidance: treat strip test context as LOW-CONFIDENCE, supplementary only. Prefer non-strip sources (visual waterbody analysis, general knowledge, location). If strip context conflicts or is ambiguous, ignore it. Do not change water_health_percent by more than ±10% based solely on strip context.\n\n"
-        "Selected-use focus (repeat): Tailor ALL fields EXCLUSIVELY to selected_use; do not mention other uses.\n"
-        "If selected_use == 'drinking': write only for drinking.\n"
-        "If selected_use == 'irrigation': write only for irrigation.\n"
-        "If selected_use == 'human' (hygiene/cleaning): NEVER imply drinking; write only for hygiene/cleaning.\n"
-        "If selected_use == 'animals': write only for animals.\n"
-        "selected_use ONLY. selected_use ONLY. selected_use ONLY. selected_use ONLY. selected_use ONLY.\n\n"
-        "Speed: single-pass only; no planning or chain-of-thought; be concise; output immediately.\n\n"
-        "Additional context (plain text; do not parse into structured data):\n"
-        "Reference ranges:\n" + _REFERENCE_RANGES_TEXT + "\n\n"
-        "Strip test context (low-confidence):\n" + (strip_context_text or "(none)") + "\n\n"
-        "Output Python only: import json; data=json.loads(combined_json); selected=selected_use; final_answer(json.dumps(result, ensure_ascii=False))."
-    )
-
     # Simple LRU cache to avoid repeated finalizations on same input
+    combined_json = json.dumps(combined, ensure_ascii=False)
     cache_key = hashlib.sha256((combined_json + "\n" + (use_case or '')).encode('utf-8')).hexdigest()
     cached = _FINALIZE_CACHE.get(cache_key)
     if cached is not None:
         return cached
 
-    with suppress_logs_and_output(), suppress_stdout_stderr():
-        t0 = time.time()
-        out = str(agent.run(prompt, additional_args={
-            'combined_json': combined_json,
-            'selected_use': use_case,
-        }))
-        t1 = time.time()
-        try:
-            # Use print so it always shows up even if logging is configured differently
-            print(f"[FINALIZE] agent_run={t1 - t0:.2f}s")
-        except Exception:
-            pass
-
-    # Robust parse
-    try:
-        parsed = json.loads(out)
-    except Exception:
-        start = out.find('{')
-        end = out.rfind('}')
-        if start != -1 and end != -1 and end > start:
-            try:
-                parsed = json.loads(out[start:end+1])
-            except Exception:
-                parsed = {
-                    'water_health_percent': "50%",
-                    'current_water_use_cases': "Use with caution; treat before sensitive uses.",
-                    'potential_dangers': "Possible microbial or chemical contaminants.",
-                    'purify_for_selected_use': "Filter and disinfect before your selected use.",
-                }
+    # Check if we already have the full API response cached
+    api_response_cached = _API_RESPONSE_CACHE.get(cache_key)
+    if api_response_cached:
+        print(f"[FINALIZE] Using cached API response")
+        api_response = api_response_cached
+        # Extract the result from the cached response
+        if 'result' in api_response:
+            result = api_response['result']
         else:
-            parsed = {
+            result = api_response
+    else:
+        # Prepare the API request payload - sending the exact same info
+        api_payload = {
+            'combined': combined,
+            'use_case': use_case
+        }
+
+        try:
+            t0 = time.time()
+            print(f"[FINALIZE] Starting API request to judge endpoint...")
+            print(f"[FINALIZE] Payload keys: {list(api_payload.keys())}")
+            
+            # Make the API request with extended timeout
+            response = requests.post(
+                'http://35.233.224.11/judge/',
+                json=api_payload,
+                timeout=120,  # 2 minute timeout to allow for API processing
+                headers={'Content-Type': 'application/json'}
+            )
+            
+            t1 = time.time()
+            print(f"[FINALIZE] api_request={t1 - t0:.2f}s, status_code={response.status_code}")
+            
+            response.raise_for_status()  # Raise an exception for bad status codes
+            
+            # Parse the response
+            api_response = response.json()
+            print(f"[FINALIZE] API response received successfully")
+            print(f"[FINALIZE] API response keys: {list(api_response.keys())}")
+            
+            # Cache the full API response for use by generate_detailed_plan
+            _API_RESPONSE_CACHE[cache_key] = api_response
+            
+            # Extract the result from the nested structure
+            if 'result' in api_response:
+                result = api_response['result']
+                print(f"[FINALIZE] Extracted result from 'result' key")
+            else:
+                print(f"[FINALIZE] No 'result' key found, using full response")
+                result = api_response  # Fallback if structure changes
+            
+            print(f"[FINALIZE] Final result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+            print(f"[FINALIZE] water_health_percent value: {result.get('water_health_percent', 'NOT_FOUND')}")
+            
+        except requests.exceptions.RequestException as e:
+            print(f"[FINALIZE] API request failed: {e}")
+            # Fallback to default response if API fails
+            result = {
                 'water_health_percent': "50%",
                 'current_water_use_cases': "Use with caution; treat before sensitive uses.",
                 'potential_dangers': "Possible microbial or chemical contaminants.",
                 'purify_for_selected_use': "Filter and disinfect before your selected use.",
             }
-
-    # Harmonize messaging with selected use (minimal filtering; keep LLM as final arbiter)
-    try:
-        selected = (use_case or '').lower()
-        def norm(s):
-            return (s or '').strip()
-        current = norm(parsed.get('current_water_use_cases'))
-        purify = norm(parsed.get('purify_for_selected_use'))
-        dangers = norm(parsed.get('potential_dangers'))
-
-        def remove_unrelated_mentions(s: str) -> str:
-            if not s:
-                return s
-            lowered = s.lower()
-            if selected in ('irrigation', 'human'):
-                for term in ['drink', 'consum', 'animal']:
-                    if term in lowered:
-                        return s.split('.')[0] + '.'
-            if selected == 'animals':
-                for term in ['drink', 'human']:
-                    if term in lowered:
-                        return s.split('.')[0] + '.'
-            return s
-
-        parsed['current_water_use_cases'] = remove_unrelated_mentions(current) or current
-        parsed['potential_dangers'] = remove_unrelated_mentions(dangers) or dangers
-        parsed['purify_for_selected_use'] = remove_unrelated_mentions(purify) or purify
-
-        result = parsed
-    except Exception:
-        result = parsed
+        except (ValueError, KeyError, json.JSONDecodeError) as e:
+            print(f"[FINALIZE] API response parsing failed: {e}")
+            # Fallback to default response if parsing fails
+            result = {
+                'water_health_percent': "50%",
+                'current_water_use_cases': "Use with caution; treat before sensitive uses.",
+                'potential_dangers': "Possible microbial or chemical contaminants.",
+                'purify_for_selected_use': "Filter and disinfect before your selected use.",
+            }
 
     # Update cache
     try:
@@ -219,101 +190,101 @@ def finalize_report(combined: Dict[str, Any], use_case: str) -> Dict[str, Any]:
 
 def generate_detailed_plan(final_result: Dict[str, Any], analysis: Dict[str, Any] | None = None) -> List[Dict[str, str]]:
     """
-    Generate a step-by-step purification plan using smolagents. Returns a list of
-    {title, description} items. Uses the same model singleton for efficiency.
+    Get the detailed purification plan from the external API endpoint.
+    Returns a list of {title, description} items from the API's purification_plan.
     """
-    model = _ensure_model()
-    agent = CodeAgent(
-        tools=[],
-        model=model,
-        additional_authorized_imports=["json"],
-        max_steps=1,
-        verbosity_level=0,
-        instructions=(
-            "Single-pass execution. Do not plan, reflect, or call tools. "
-            "Output final_answer immediately in the requested JSON format."
-        ),
-    )
-
-    # Build compact context with plain-text strip info
-    strip_text = _format_strip_context_text(analysis if isinstance(analysis, dict) else None)
-    ctx = {
-        'final': final_result or {},
-        'strip_text': strip_text,
-        'reference_ranges': _REFERENCE_RANGES_TEXT,
-        'waterbody': (analysis or {}).get('waterbody') if isinstance(analysis, dict) else None,
-        'location': (analysis or {}).get('location') if isinstance(analysis, dict) else None,
+    # Use the same cache key format as finalize_report
+    combined = analysis or {}
+    combined_json = json.dumps(combined, ensure_ascii=False)
+    use_case = final_result.get('selected_use', 'human')
+    cache_key = hashlib.sha256((combined_json + "\n" + (use_case or '')).encode('utf-8')).hexdigest()
+    
+    # First check if we have the full API response cached from finalize_report
+    api_response_cached = _API_RESPONSE_CACHE.get(cache_key)
+    if api_response_cached:
+        print(f"[DETAILED] Using cached API response from finalize_report")
+        # Extract the purification_plan from the cached response
+        if 'purification_plan' in api_response_cached:
+            purification_plan = api_response_cached['purification_plan']
+            if isinstance(purification_plan, list):
+                # Normalize the plan format
+                normalized_plan = []
+                for item in purification_plan:
+                    if isinstance(item, dict) and 'title' in item and 'description' in item:
+                        normalized_plan.append({
+                            'title': str(item['title']).strip(),
+                            'description': str(item['description']).strip()
+                        })
+                
+                if normalized_plan:
+                    return normalized_plan
+    
+    # If we don't have it cached, make the API call
+    api_payload = {
+        'combined': combined,
+        'use_case': use_case
     }
-    ctx_json = json.dumps(ctx, ensure_ascii=False)
 
-    prompt = (
-        "You are a water safety practitioner. Given ctx_json, generate a detailed purification plan.\n"
-        "Inputs: ctx_json has keys: final (LLM summary with selected use, dangers, purify guidance, percent),\n"
-        "optional strip_text (plain text summary of test strip results), reference_ranges (plain text table for qualitative guidance), optional waterbody (evaluation & observations), optional location (lat,lng,hint).\n\n"
-        "Note: strip_text and reference_ranges are LOW-CONFIDENCE, for qualitative reasoning only; do not attempt to parse into structured data. Prefer non-strip evidence (final summary, waterbody, general knowledge). If strip hints conflict or are unclear, ignore them.\n\n"
-        "Task: Produce a Python list named steps of 4–6 items. Each item is a dict:\n"
-        "{ 'title': short string, 'description': 2–4 sentences }.\n\n"
-        "Policy:\n"
-        "- Align with final.selected_use (non-consumptive if 'human': showering, bathing, laundry; do not imply drinking).\n"
-        "- Be realistic, non-alarmist. Adapt to location.hint only if present (country/region).\n"
-        "- Start with low-cost actions (settling, cloth/sand filtration), then progressive disinfection options (chlorine/boil/UV) as appropriate.\n"
-        "- If strong evidence of risk exists, include extra caution and monitoring.\n"
-        "- Avoid brand names; keep steps actionable and safe.\n\n"
-        "Selected-use focus (repeat): The plan MUST target final.selected_use ONLY; do not mention other uses.\n"
-        "If final.selected_use == 'drinking': write only for drinking.\n"
-        "If final.selected_use == 'irrigation': write only for irrigation.\n"
-        "If final.selected_use == 'human' (hygiene/cleaning): NEVER imply drinking; write only for hygiene/cleaning.\n"
-        "If final.selected_use == 'animals': write only for animals.\n"
-        "final.selected_use ONLY. final.selected_use ONLY. final.selected_use ONLY. final.selected_use ONLY. final.selected_use ONLY.\n\n"
-        "Speed: single-pass only; no planning or chain-of-thought; be concise; output immediately.\n\n"
-        "Output Python only: import json; ctx=json.loads(ctx_json); final_answer(json.dumps(steps, ensure_ascii=False))."
-    )
-
-    with suppress_logs_and_output(), suppress_stdout_stderr():
+    try:
         t0 = time.time()
-        out = str(agent.run(prompt, additional_args={
-            'ctx_json': ctx_json,
-        }))
+        print(f"[DETAILED] Starting API request for purification plan...")
+        
+        # Make the API request with extended timeout
+        response = requests.post(
+            'http://35.233.224.11/judge/',
+            json=api_payload,
+            timeout=120,  # 2 minute timeout to allow for API processing
+            headers={'Content-Type': 'application/json'}
+        )
+        
         t1 = time.time()
-        try:
-            print(f"[DETAILED] agent_run={t1 - t0:.2f}s")
-        except Exception:
-            pass
-
-    # Parse robustly to list[dict]
-    def _try_parse_list(text: str):
-        try:
-            data = json.loads(text)
-            return data if isinstance(data, list) else None
-        except Exception:
-            start = text.find('[')
-            end = text.rfind(']')
-            if start != -1 and end != -1 and end > start:
-                try:
-                    data = json.loads(text[start:end+1])
-                    return data if isinstance(data, list) else None
-                except Exception:
-                    return None
-            return None
-
-    steps = _try_parse_list(out) or []
-    normalized: List[Dict[str, str]] = []
-    for idx, item in enumerate(steps):
-        if not isinstance(item, dict):
-            continue
-        title = str(item.get('title') or f"Step {idx+1}").strip()
-        desc = str(item.get('description') or "").strip()
-        if not desc:
-            continue
-        normalized.append({'title': title, 'description': desc})
-
-    if not normalized:
-        normalized = [
-            {'title': 'Filter water through cloth/sand', 'description': 'Use a clean cloth or sand/gravel filter to remove visible particles and sediments. Repeat until water looks clear.'},
-            {'title': 'Disinfect appropriately', 'description': 'Use chlorine, UV, or boiling depending on availability. Adjust dose and contact time; if boiling, bring to a rolling boil for at least 1 minute.'},
-            {'title': 'Safe storage', 'description': 'Store in clean, covered containers. Avoid recontamination; use ladles or taps rather than dipping hands.'},
-        ]
-
-    return normalized
+        print(f"[DETAILED] api_request={t1 - t0:.2f}s, status_code={response.status_code}")
+        
+        response.raise_for_status()  # Raise an exception for bad status codes
+        
+        # Parse the response
+        api_response = response.json()
+        print(f"[DETAILED] API response received successfully")
+        
+        # Cache the full API response for future use
+        _API_RESPONSE_CACHE[cache_key] = api_response
+        
+        # Extract the purification_plan from the API response
+        if 'purification_plan' in api_response:
+            purification_plan = api_response['purification_plan']
+            if isinstance(purification_plan, list):
+                # Normalize the plan format
+                normalized_plan = []
+                for item in purification_plan:
+                    if isinstance(item, dict) and 'title' in item and 'description' in item:
+                        normalized_plan.append({
+                            'title': str(item['title']).strip(),
+                            'description': str(item['description']).strip()
+                        })
+                
+                if normalized_plan:
+                    return normalized_plan
+        
+        # If we can't extract the plan, fall back to default
+        print(f"[DETAILED] Could not extract purification_plan from API response")
+        
+    except Exception as e:
+        print(f"[DETAILED] API request failed: {e}")
+    
+    # Fallback default plan
+    return [
+        {
+            "title": "Filter water",
+            "description": "Use clean cloth or filter to remove visible particles and sediment."
+        },
+        {
+            "title": "Disinfect",
+            "description": "Boil water for 1 minute, use purification tablets, or add unscented bleach (1/4 tsp per gallon)."
+        },
+        {
+            "title": "Safe storage",
+            "description": "Store in clean, covered containers. Use within 24 hours if not refrigerated."
+        }
+    ]
 
 
