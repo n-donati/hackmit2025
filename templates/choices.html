@@ -399,6 +399,10 @@
             // Add active class to clicked item
             event.target.closest('.nav-item').classList.add('active');
             
+            if (section === 'analysis') {
+                window.location.href = '/analysis/';
+                return;
+            }
             console.log('Navigating to:', section);
         }
         

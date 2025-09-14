@@ -181,7 +181,8 @@ def analyze_water_image(image_bytes: bytes) -> dict:
             "- Any visible signage, bridges, landmarks that might hint the approximate location (do NOT guess an address).\n"
             "- Water appearance (color, clarity, surface patterns), without making chemical claims.\n"
             "- Weather/lighting and river flow hints (direction, turbulence).\n"
-            "Keep it objective, visual-only, and comprehensive so downstream text-only agents can reason on it."
+            "Explicitly list if present: visible trash/garbage, discharge pipes, oil sheen/iridescence, foam/scum, dead fish/wildlife, algal scum/mats.\n"
+            "Tone: realistic and non-alarmist. Benign explanations (natural sediments, plant reflections) should be considered. Clear evidence should be flagged explicitly."
         )
         vision_response = vision_client.models.generate_content(
             model='gemini-2.5-flash',
@@ -212,7 +213,8 @@ def analyze_water_image(image_bytes: bytes) -> dict:
         agent1_instruction = (
             "Focus on land, vegetation, and surroundings near the water. Detect signs of pollution sources: "
             "factories, pipes, industrial zones; agricultural runoff; trash on shores; erosion; algae blooms; dead vegetation. "
-            "Report geolocation-relevant features and potential contamination sources factually and non-biased."
+            "Flag STRONG EVIDENCE when clearly visible (trash piles, discharge pipes, dead fish/wildlife). "
+            "Be realistic: do not infer contamination without clear evidence and note benign context as well."
         )
         env_schema = "{\\n  \\\"potential_sources\\\": [string,...],\\n  \\\"notes\\\": string\\n}"
         env_context = run_agent(
@@ -224,7 +226,8 @@ def analyze_water_image(image_bytes: bytes) -> dict:
         agent2_instruction = (
             "Focus on the water surface. Assess clarity vs murkiness, turbidity, floating oil/foam/scum, "
             "suspended particles/sediment, and reflections/light behavior for depth/turbidity hints. "
-            "Provide a surface condition report with possible contamination types without speculation."
+            "If oil sheen/iridescence or persistent foam/scum is clearly visible, mark it as STRONG EVIDENCE. "
+            "Be realistic: vegetation reflections and natural sediments can reduce apparent clarity. Avoid assuming pollution from color alone."
         )
         surface_schema = "{\\n  \\\"clarity\\\": string,\\n  \\\"turbidity\\\": string,\\n  \\\"surface_contaminants\\\": [string,...],\\n  \\\"notes\\\": string\\n}"
         surface_report = run_agent(
@@ -235,8 +238,9 @@ def analyze_water_image(image_bytes: bytes) -> dict:
 
         agent3_instruction = (
             "Focus on the water color spectrum and visible signatures. Consider green shades (algae/eutrophication), "
-            "brown/red tints (iron, clay, pollution), blue/clear (generally clean), and iridescence (oil/metals). "
-            "Infer likely chemical/biological risks with cautious language and clear uncertainty."
+            "brown/red tints (iron, clay, natural sediments), blue/clear (generally clean), and iridescence (oil/metals). "
+            "If iridescence consistent with oil/metal films is evident, flag as STRONG EVIDENCE. "
+            "Infer likely risks with cautious language and highlight uncertainty; include plausible benign causes."
         )
         color_schema = "{\\n  \\\"observed_colors\\\": [string,...],\\n  \\\"inferred_risks\\\": [string,...],\\n  \\\"notes\\\": string\\n}"
         color_chem = run_agent(
@@ -251,6 +255,8 @@ def analyze_water_image(image_bytes: bytes) -> dict:
             "Steps: 1) derive issues_identified, recommendations, recommended_uses from inputs;\n"
             "2) choose water_usage_classification from {safe_for_drinking, agricultural_only, recreational_only, unsafe, requires_purification};\n"
             "3) build exactly 10 usage_parameters with name,value,rationale; 4) set confidence in [0,1] and caveats;\n"
+            "Calibration: be realistic, non-alarmist. Raise risk classification only when STRONG EVIDENCE is present (e.g., trash piles, discharge pipes, oil sheen, dead fish).\n"
+            "Prefer 'recreational_only' or 'requires_purification' when uncertain. Keep recommendations balanced and practical.\n"
             "5) call finalize_water_report(scene_description, env_data, surface_data, color_data, issues_identified, recommendations, water_usage_classification, recommended_uses, usage_parameters, confidence, caveats) and return it with final_answer.\n"
             "Output Python code only (no prose)."
         )

@@ -31,10 +31,10 @@
         document.querySelectorAll('.nav-item').forEach(item => {
             item.classList.remove('active');
         });
-        
+
         // Add active class to clicked item
         event.target.closest('.nav-item').classList.add('active');
-        
+
         // Navigate to the appropriate page
         switch(section) {
             case 'home':

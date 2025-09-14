@@ -265,10 +265,10 @@
 
       // Optional: swap image based on selected use (nice polish)
       const useImages = {
-        drinking: '../static/images/drinking.svg',
-        irrigation: '../static/images/IrrigationImage.svg',
-        human: '../static/images/bathing.svg',
-        animals: '../static/images/animals.svg'
+       drinking:  '../static/images/drinkingWater.jpg',
+      irrigation:'../static/images/irrigation.jpg',
+      human:     '../static/images/washingHands.jpg',
+      animals:   '../static/images/animalUse.jpeg'
       };
       const imgEl = document.querySelector('.purify img');
       if (imgEl && useImages[selectedUse]) {
@@ -301,7 +301,7 @@
     if (e && e.currentTarget) e.currentTarget.classList.add('active');
     switch(section){
       case 'home':       window.location.href='home.html'; break;
-      case 'analysis':   window.location.href='tester-standalone.html'; break;
+      case 'analysis':   window.location.href='tester.html'; break;
       case 'results':    window.location.href='water-health.html'; break;
       case 'statistics': window.location.href='statistics.html'; break;
     }

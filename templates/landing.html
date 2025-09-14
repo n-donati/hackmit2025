@@ -1,0 +1,262 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Home • Water Quality</title>
+  <style>
+    :root{
+      --blue:#0D50CD;
+      --blue-700:#0b47b7;
+      --ink:#0b1020;
+      --muted:#eef2ff;
+      --card:#f5f7ff;
+      --bg:#ffffff;
+      --shadow:0 10px 30px rgba(0,0,0,.08);
+      --radius:20px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color:var(--ink);
+      background:var(--bg);
+      display:flex;
+      flex-direction:column;
+    }
+    .container{
+      max-width:390px;
+      width:100%;
+      margin:0 auto;
+      min-height:100%;
+      background:var(--bg);
+      display:flex; flex-direction:column;
+    }
+    @media (min-width:768px){
+      .container{
+        max-width:600px;
+        margin:20px auto;
+        border-radius:var(--radius);
+        box-shadow:var(--shadow);
+        min-height:calc(100vh - 40px);
+        overflow:hidden;
+      }
+    }
+
+    /* Top spacing */
+    .page{padding:24px 20px 90px; flex:1}
+
+    /* Headline */
+    .headline{
+      font-weight:800;
+      font-size:40px;
+      line-height:1.1;
+      color:var(--blue);
+      letter-spacing:.2px;
+      margin-bottom:18px;
+    }
+
+    /* Stat cards */
+    .stats{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:22px;}
+    .stat{
+      background:#eef3ff;
+      border-radius:14px;
+      padding:16px 16px 14px;
+      display:flex; align-items:center; gap:12px;
+    }
+    .stat svg{flex:0 0 28px; height:28px; width:28px}
+    .stat .num{font-size:28px; font-weight:800; color:#111827; line-height:1}
+    .stat .label{font-size:15px; color:#475569; margin-top:2px}
+
+    /* Big banner */
+    .banner{
+      position:relative; overflow:hidden;
+      border-radius:14px;
+      background:linear-gradient(180deg,#1863ff 0%, #0d50cd 100%);
+      color:white;
+      padding:22px 18px;
+      margin-bottom:22px;
+      isolation:isolate;
+    }
+    .banner h2{font-size:28px; line-height:1.2; letter-spacing:.2px; margin-bottom:12px;}
+    .banner p{font-size:16px; line-height:1.5; opacity:.95}
+    .banner .waves{position:absolute; inset:0; z-index:-1; opacity:.25}
+    .banner .waves svg{width:140%; height:100%; transform:translateX(-10%)}
+
+    /* CTA card */
+    .cta{
+      background:var(--card);
+      border-radius:14px;
+      padding:20px 18px;
+      display:grid;
+      grid-template-columns:1fr auto;
+      align-items:center;
+      gap:10px 12px;
+    }
+    .cta h3{
+      color:var(--blue);
+      font-size:32px;
+      line-height:1.05;
+      letter-spacing:.2px;
+      grid-column:1 / -1;
+      margin-bottom:4px;
+    }
+    .cta p{font-size:16px; color:#1f2937; grid-column:1 / 2; margin-right:8px}
+    .cta .strip{grid-column:2 / 3}
+    .cta .btn{
+      grid-column:1 / 2;
+      margin-top:12px;
+      background:var(--blue);
+      color:white;
+      border:none;
+      border-radius:12px;
+      padding:14px 18px;
+      font-size:16px; font-weight:700;
+      text-decoration:none; display:inline-block; text-align:center;
+    }
+    .cta .btn:active{transform:translateY(1px)}
+    .cta .btn:hover{background:var(--blue-700)}
+
+    /* Bottom nav */
+    .tabbar{
+      position:sticky; bottom:0; left:0; right:0;
+      background:white;
+      border-top:1px solid #e5e7eb;
+      padding:10px 6px calc(env(safe-area-inset-bottom) + 10px);
+    }
+    .tabs{max-width:390px; margin:0 auto; display:grid; grid-template-columns:repeat(4,1fr); gap:4px}
+    @media (min-width:768px){ .tabs{max-width:600px} }
+    .tab{
+      display:flex; flex-direction:column; align-items:center; gap:6px;
+      color:#374151; text-decoration:none; font-weight:600; font-size:14px;
+    }
+    .tab svg{width:26px; height:26px}
+    .tab.active{color:var(--blue)}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <main class="page" role="main">
+      <!-- Headline -->
+      <h1 class="headline">Pure Insights.<br/>Clear decisions.</h1>
+
+      <!-- Stats -->
+      <section class="stats" aria-label="Stats">
+        <div class="stat" aria-live="polite">
+          <!-- glass icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="#0D50CD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 3h16l-1.5 15.5A4 4 0 0 1 14.5 22h-5A4 4 0 0 1 5.5 18.5L4 3Z"/>
+            <path d="M4 7h16"/>
+          </svg>
+          <div>
+            <div class="num">{{ tests_count|default:24 }}</div>
+            <div class="label">Tests performed</div>
+          </div>
+        </div>
+
+        <div class="stat">
+          <!-- droplet icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="#0D50CD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 2s7 7 7 12a7 7 0 1 1-14 0c0-5 7-12 7-12z"/>
+          </svg>
+          <div>
+            <div class="num">{{ repurposed_liters|default:"40L" }}</div>
+            <div class="label">Repurposed Water</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Banner with waves background -->
+      <section class="banner" aria-label="From Waste to Wonder">
+        <div class="waves" aria-hidden="true">
+          <!-- subtle waves background (inline SVG so no external file needed) -->
+          <svg viewBox="0 0 800 300" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="100%" stop-color="#fff"/>
+              </linearGradient>
+            </defs>
+            <path d="M0,120 C120,160 240,80 360,110 C480,140 600,80 720,110 L800,130 L800,300 L0,300 Z" fill="url(#g)"/>
+            <path d="M0,160 C120,190 240,130 360,155 C480,180 600,130 720,155 L800,170 L800,300 L0,300 Z" fill="url(#g)"/>
+            <path d="M0,200 C120,230 240,180 360,205 C480,230 600,180 720,205 L800,220 L800,300 L0,300 Z" fill="url(#g)"/>
+          </svg>
+        </div>
+        <h2>From Waste to Wonder</h2>
+        <p>Every day, countless liters of water go to waste. Yet much of this water could be filtered and given a second life, conserving one of our most precious resources. Together, we can make every drop count.</p>
+      </section>
+
+      <!-- CTA card -->
+      <section class="cta" aria-label="Repurpose your Water">
+        <h3>Repurpose<br/>your<br/>Water</h3>
+
+        <p>Upload your water info and discover safe new ways to give it a second life.</p>
+
+        <!-- test strip illustration -->
+        <div class="strip" aria-hidden="true">
+          <svg viewBox="0 0 120 240" width="110" height="220">
+            <defs>
+              <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity=".25"/>
+              </filter>
+            </defs>
+            <g transform="rotate(18 60 120)" filter="url(#sh)">
+              <rect x="32" y="20" width="56" height="200" rx="10" fill="#0D50CD"/>
+              <rect x="38" y="26" width="44" height="188" rx="6" fill="#ffffff"/>
+              <rect x="42" y="38" width="36" height="26" rx="4" fill="#ffb4b4"/>
+              <rect x="42" y="76" width="36" height="26" rx="4" fill="#ffd28c"/>
+              <rect x="42" y="114" width="36" height="26" rx="4" fill="#ffe97c"/>
+              <rect x="42" y="152" width="36" height="26" rx="4" fill="#c9c2ff"/>
+              <rect x="42" y="190" width="36" height="26" rx="4" fill="#8ee2a7"/>
+            </g>
+          </svg>
+        </div>
+
+        <a class="btn" href="{% url 'analysis' %}">Test your water</a>
+      </section>
+    </main>
+
+    <!-- Bottom navigation -->
+    <nav class="tabbar" role="navigation" aria-label="Bottom navigation">
+      <div class="tabs">
+        <a class="tab active" href="{% url 'home' %}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 11L12 3l9 8"/>
+            <path d="M5 10v10h14V10"/>
+          </svg>
+          <span>Home</span>
+        </a>
+        <a class="tab" href="{% url 'analysis' %}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 20V8"/>
+            <path d="M16 20V4"/>
+            <path d="M11 20v-6"/>
+            <path d="M6 20v-2"/>
+          </svg>
+          <span>Analysis</span>
+        </a>
+        <a class="tab" href="/results">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="14" rx="2"/>
+            <path d="M7 21h10"/>
+            <path d="M9 17v4M15 17v4"/>
+          </svg>
+          <span>Results</span>
+        </a>
+        <a class="tab" href="/statistics">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 19V5"/>
+            <path d="M20 19V9"/>
+            <path d="M12 19V3"/>
+          </svg>
+          <span>Statistics</span>
+        </a>
+      </div>
+    </nav>
+  </div>
+
+  <!-- optional tiny enhancement: keep active tab in sync by URL name -->
+</body>
+</html>

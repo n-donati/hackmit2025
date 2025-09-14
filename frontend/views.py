@@ -15,9 +15,7 @@ from .finalize_utils import finalize_report
 
 
 def home(request):
-    return render(request, 'tester.html', {
-        'GOOGLE_MAPS_API_KEY': getattr(settings, 'GOOGLE_MAPS_API_KEY', None)
-    })
+    return render(request, 'landing.html')
 
 
 def choices(request):
@@ -26,6 +24,13 @@ def choices(request):
 
 def health(request):
     return render(request, 'health.html')
+
+
+def analysis(request):
+    # Reuse tester as the analysis entry point
+    return render(request, 'tester.html', {
+        'GOOGLE_MAPS_API_KEY': getattr(settings, 'GOOGLE_MAPS_API_KEY', None)
+    })
 
 
 logger = logging.getLogger(__name__)
