@@ -316,7 +316,7 @@
                         <img src="../static/images/drinking.svg" alt="Drinking" >
                     </div>
                 </div>
-            </button>
+            </div>
             
             <div class="section" onclick="selectChoice('irrigation')">
                 <div class="section-header">
@@ -327,12 +327,12 @@
                 </div>
                 <div>
                     <div class="section-icon">
-                        <img src="../static/images/irrigation.svg" alt="Irrigation" >
+                        <img src="../static/images/irrigation.svg" alt="Irrigation" style="margin-top: -40px;">
                     </div>
                 </div>
-            </button>
+            </div>
             
-            <div class="section" onclick="selectChoice('cleaning')">
+            <div class="section" onclick="selectChoice('human')">
                 <div class="section-header">
                     <div class="section-title">Human Use</div>
                         <div class="section-description">
@@ -341,10 +341,10 @@
                 </div>
                 <div>
                     <div class="section-icon">
-                        <img src="../static/images/bathing.svg" alt="Bathing" >
+                        <img src="../static/images/bathing.svg" alt="Bathing" style="margin-top: -40px;">
                     </div>
                 </div>
-            </button>
+            </div>
 
             <div class="section" onclick="selectChoice('animals')">
                 <div class="section-header">
@@ -358,7 +358,7 @@
                         <img src="../static/images/animals.svg" alt="Animals" >
                     </div>
                 </div>
-            </button>
+            </div>
         </div>
         
         <nav class="bottom-nav">
@@ -435,17 +435,16 @@
                 overlay.style.justifyContent = 'center';
                 overlay.style.zIndex = '9999';
                 overlay.innerHTML = `
-<svg width="120" height="160" viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg" aria-label="Loading">
+<svg width="220" height="300" viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg" aria-label="Loading" style="filter: drop-shadow(0 12px 30px rgba(0,0,0,.12));">
   <defs>
     <clipPath id="droplet-clip">
       <path d="M100 10 C 70 60, 40 100, 40 140 C 40 180, 66 210, 100 210 C 134 210, 160 180, 160 140 C 160 100, 130 60, 100 10 Z" />
     </clipPath>
   </defs>
-  <rect x="0" y="0" width="200" height="260" fill="#E5ECFF"/>
   <g clip-path="url(#droplet-clip)">
     <rect id="fillRect" x="40" y="210" width="120" height="0" fill="#0D50CD">
-      <animate attributeName="y" values="210;70;210" dur="2s" repeatCount="indefinite" />
-      <animate attributeName="height" values="0;140;0" dur="2s" repeatCount="indefinite" />
+      <animate attributeName="y" values="210;60;210" dur="1.6s" repeatCount="indefinite" keySplines=".25,.1,.25,1; .25,.1,.25,1" calcMode="spline" />
+      <animate attributeName="height" values="0;150;0" dur="1.6s" repeatCount="indefinite" keySplines=".25,.1,.25,1; .25,.1,.25,1" calcMode="spline" />
     </rect>
   </g>
   <path d="M100 10 C 70 60, 40 100, 40 140 C 40 180, 66 210, 100 210 C 134 210, 160 180, 160 140 C 160 100, 130 60, 100 10 Z" fill="none" stroke="#0D50CD" stroke-width="6"/>
@@ -459,22 +458,22 @@
                 const data = await res.json();
                 overlay.remove();
                 if (!res.ok) throw new Error(data.error || 'Failed');
-                alert('Finalized!\n' + JSON.stringify(data, null, 2));
+                // Pass results to health page
+                try {
+                    sessionStorage.setItem('final_result', JSON.stringify(data));
+                } catch (e) {}
+                window.location.href = '/health/';
             } catch (e) {
                 alert('Error: ' + e.message);
             }
+        }
+
         function selectChoice(choice) {
-            console.log('Selected choice:', choice);
-            
-            // Show loading or processing state (optional)
             const selectedSection = event.target.closest('.section');
-            selectedSection.style.background = '#0a42a8';
-            
-            // Simulate analysis processing time
-            setTimeout(() => {
-                // Navigate to water-health.html with the choice parameter
-                window.location.href = `water-health.html?choice=${choice}`;
-            }, 500);
+            if (selectedSection) {
+                selectedSection.classList.add('is-pressed');
+            }
+            setTimeout(() => finalizeWith(choice, selectedSection), 500);
         }
         
         function continueAssessment() {

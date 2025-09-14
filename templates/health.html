@@ -188,8 +188,8 @@
   
       <section class="purify" aria-labelledby="irrigation-title">
         <div>
-          <h3 id="irrigation-title">Purify for Irrigation Use</h3>
-          <p id="irrigation-text">Treat the water in three simple steps: filter, disinfect, and use for irrigation.</p>
+          <h3 id="irrigation-title">Purify Guidance</h3>
+          <p id="irrigation-text">Preparing guidance...</p>
           <button class="btn-outline plan-btn" onclick="getDetailedPlan()">Get a detailed plan</button>
         </div>
         <img src="../static/images/irrigation.jpg" alt="Irrigation plants">
@@ -218,6 +218,49 @@
   </div>
 
   <script>
+    // If we came from choices with sessionStorage payload, hydrate the page
+    (function(){
+      try{
+        const stored = sessionStorage.getItem('final_result');
+        if(!stored) return;
+        const data = JSON.parse(stored);
+        console.log('[HEALTH] Hydrating with final_result:', data);
+        // water_health_percent like "55%"
+        const score = (data && data.water_health_percent) ? String(data.water_health_percent) : null;
+        const useCases = data && data.current_water_use_cases;
+        const dangers = data && data.potential_dangers;
+        const purify = data && data.purify_for_selected_use;
+        const purifyTitle = data && data.purify_title;
+        const selectedUse = data && data.selected_use;
+
+        if(score){
+          const el = document.querySelector('.score-badge');
+          if(el) el.textContent = score;
+        }
+        if(useCases){
+          const el = document.getElementById('warning-text');
+          if(el) el.textContent = useCases;
+        }
+        if(dangers){
+          const el = document.getElementById('dangers-text');
+          if(el) el.textContent = dangers;
+        }
+        const elH = document.getElementById('irrigation-title');
+        const elP = document.getElementById('irrigation-text');
+        const useTitles = {
+          drinking: 'Purify for Drinking Use',
+          irrigation: 'Purify for Irrigation Use',
+          human: 'Purify for Human Use',
+          animals: 'Purify for Animal Use'
+        };
+        if (elH) {
+          elH.textContent = purifyTitle || (selectedUse ? useTitles[selectedUse] : elH.textContent);
+        }
+        if (elP && purify) {
+          elP.textContent = purify;
+        }
+      }catch(e){/* ignore */}
+    })();
 
     window.navigateTo = function(section, e){
       document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));

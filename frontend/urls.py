@@ -8,6 +8,7 @@ urlpatterns = [
     path('choices/', views.choices, name='choices'),
     path('aggregate/stash/', views.aggregate_stash, name='aggregate_stash'),
     path('aggregate/finalize/', views.aggregate_finalize, name='aggregate_finalize'),
+    path('health/', views.health, name='health'),
 ]
 
 

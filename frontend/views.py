@@ -24,6 +24,10 @@ def choices(request):
     return render(request, 'choices.html')
 
 
+def health(request):
+    return render(request, 'health.html')
+
+
 logger = logging.getLogger(__name__)
 
 # Dedicated logger to always show aggregator outputs on stdout
@@ -152,6 +156,7 @@ def aggregate_finalize(request):
         # B) JSON with use_case only (uses stashed session analysis)
 
         if request.FILES.get('strip') or request.FILES.get('waterbody'):
+            agg_logger.info("[FINALIZE] Flow A (files) detected")
             # Flow A: perform analysis now, then finalize
             strip_file = request.FILES.get('strip')
             water_files = request.FILES.getlist('waterbody') or ([request.FILES.get('waterbody')] if request.FILES.get('waterbody') else [])
@@ -169,16 +174,38 @@ def aggregate_finalize(request):
             except ValueError:
                 return JsonResponse({'error': 'Invalid lat/lng values'}, status=400)
 
+            try:
+                agg_logger.info(
+                    "[FINALIZE] Received strip_bytes=%s water_bytes=%s lat=%s lng=%s use_case=%s",
+                    getattr(strip_file, 'size', None),
+                    getattr(water_files[0], 'size', None) if water_files else None,
+                    latitude,
+                    longitude,
+                    user_use_case,
+                )
+            except Exception:
+                pass
+
             # Analyze strip
-            strip_bytes = strip_file.read()
-            strip_b64 = base64.b64encode(strip_bytes).decode('utf-8') if strip_bytes else ''
-            if not strip_b64:
-                return JsonResponse({'error': 'Empty strip image payload'}, status=400)
-            strip_result = process_strip_base64(strip_b64)
+            strip_result = None
+            try:
+                strip_bytes = strip_file.read()
+                strip_b64 = base64.b64encode(strip_bytes).decode('utf-8') if strip_bytes else ''
+                if not strip_b64:
+                    return JsonResponse({'error': 'Empty strip image payload'}, status=400)
+                strip_result = process_strip_base64(strip_b64)
+            except Exception as exc:
+                agg_logger.exception("[FINALIZE] Strip analysis failed: %s", str(exc))
+                strip_result = {}
 
             # Analyze waterbody (first image)
-            water_image_bytes = water_files[0].read()
-            water_result = analyze_water_image(water_image_bytes) if water_image_bytes else None
+            water_result = None
+            try:
+                water_image_bytes = water_files[0].read()
+                water_result = analyze_water_image(water_image_bytes) if water_image_bytes else None
+            except Exception as exc:
+                agg_logger.exception("[FINALIZE] Waterbody analysis failed: %s", str(exc))
+                water_result = None
 
             static_map_url = f"/location/aerial/?lat={latitude}&lng={longitude}&zoom=16&size=640x400&maptype=satellite"
             combined = {
@@ -190,12 +217,29 @@ def aggregate_finalize(request):
                     'static_map_url': static_map_url,
                 },
                 'errors': {
-                    'strip': None,
+                    'strip': None if strip_result else 'strip_failed',
                     'waterbody': None if water_result else 'waterbody_failed',
                 }
             }
             try:
+                agg_logger.info("[FINALIZE] Combined summary: has_strip=%s has_water=%s", bool(strip_result), bool(water_result))
+            except Exception:
+                pass
+            try:
                 ai_result = finalize_report(combined, user_use_case)
+                # Attach selected use and a title hint for the UI
+                use_titles = {
+                    'drinking': 'Purify for Drinking Use',
+                    'irrigation': 'Purify for Irrigation Use',
+                    'human': 'Purify for Human Use',
+                    'animals': 'Purify for Animal Use',
+                }
+                ai_result['selected_use'] = user_use_case
+                ai_result['purify_title'] = use_titles.get(user_use_case or '', 'Purify Guidance')
+                try:
+                    agg_logger.info("[FINALIZE] AI result sample: percent=%s", ai_result.get('water_health_percent'))
+                except Exception:
+                    pass
                 return JsonResponse(ai_result)
             except Exception:
                 # Fallback heuristic
@@ -230,12 +274,19 @@ def aggregate_finalize(request):
                     'current_water_use_cases': current_use_cases,
                     'potential_dangers': dangers,
                     'purify_for_selected_use': purify_for,
+                    'selected_use': user_use_case,
+                    'purify_title': use_case_texts.get(user_use_case or '', 'Purify Guidance').replace('Purify for ', 'Purify for ') if user_use_case else 'Purify Guidance',
                 })
 
         # Flow B: JSON from session
         payload = json.loads(request.body.decode('utf-8'))
         user_use_case = payload.get('use_case')
+        agg_logger.info("[FINALIZE] Flow B (session) detected; use_case=%s", user_use_case)
         data = request.session.get('last_analysis') or {}
+        try:
+            agg_logger.info("[FINALIZE] Session last_analysis present=%s", bool(data))
+        except Exception:
+            pass
 
         # Minimal, heuristic finalization (placeholder before smolagents flow):
         # Map waterbody classification to percent, uses, dangers; personalize with selected use-case
@@ -273,14 +324,30 @@ def aggregate_finalize(request):
         # Use smolagents synthesizer for final JSON; fallback to heuristic result if it fails
         try:
             ai_result = finalize_report(data, user_use_case or '')
+            use_titles = {
+                'drinking': 'Purify for Drinking Use',
+                'irrigation': 'Purify for Irrigation Use',
+                'human': 'Purify for Human Use',
+                'animals': 'Purify for Animal Use',
+            }
+            ai_result['selected_use'] = user_use_case
+            ai_result['purify_title'] = use_titles.get(user_use_case or '', 'Purify Guidance')
+            try:
+                agg_logger.info("[FINALIZE] AI result sample: percent=%s", ai_result.get('water_health_percent'))
+            except Exception:
+                pass
             return JsonResponse(ai_result)
-        except Exception:
+        except Exception as exc:
+            agg_logger.exception("[FINALIZE] AI finalize failed: %s", str(exc))
             result = {
                 'water_health_percent': f"{health_percent}%",
                 'current_water_use_cases': current_use_cases,
                 'potential_dangers': dangers,
                 'purify_for_selected_use': purify_for,
+                'selected_use': user_use_case,
+                'purify_title': use_case_texts.get(user_use_case or '', 'Purify Guidance').replace('Purify for ', 'Purify for ') if user_use_case else 'Purify Guidance',
             }
             return JsonResponse(result)
     except Exception:
+        agg_logger.exception("[FINALIZE] Unhandled error")
         return JsonResponse({'error': 'finalization_failed'}, status=500)
