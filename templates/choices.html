@@ -13,7 +13,7 @@
         
         body {
             font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
-            background: white;
+            background: #0c0c0c;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
@@ -34,9 +34,10 @@
             .container {
                 max-width: 600px;
                 margin: 20px auto;
-                border-radius: 20px;
+                border-radius: 20px 20px 0 0;
                 box-shadow: 0 10px 30px rgba(0,0,0,0.1);
                 min-height: calc(100vh - 40px);
+                overflow: hidden;
             }
         }
         
@@ -338,12 +339,25 @@
                 const overlay = document.createElement('div');
                 overlay.id = 'loaderOverlay';
                 overlay.style.position = 'fixed';
-                overlay.style.inset = '0';
+                overlay.style.left = '50%';
+                overlay.style.transform = 'translateX(-50%)';
+                overlay.style.top = '0';
+                overlay.style.width = '100%';
+                overlay.style.maxWidth = '390px';
+                overlay.style.height = '100vh';
                 overlay.style.background = '#ffffff';
                 overlay.style.display = 'flex';
                 overlay.style.alignItems = 'center';
                 overlay.style.justifyContent = 'center';
                 overlay.style.zIndex = '9999';
+                overlay.style.boxShadow = '0 10px 30px rgba(0,0,0,0.1)';
+                overlay.style.borderRadius = '0';
+                if (window.innerWidth >= 768) {
+                    overlay.style.maxWidth = '600px';
+                    overlay.style.top = '20px';
+                    overlay.style.height = 'calc(100vh - 40px)';
+                    overlay.style.borderRadius = '20px';
+                }
                 overlay.innerHTML = `
 <div style="display: flex; flex-direction: column; align-items: center; gap: 20px;">
   <svg width="220" height="280" viewBox="0 0 267.66 332.28" xmlns="http://www.w3.org/2000/svg" aria-label="Loading" style="filter: drop-shadow(0 12px 30px rgba(0,0,0,.12));">
