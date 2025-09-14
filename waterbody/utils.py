@@ -7,54 +7,30 @@ import json
 import logging
 import os
 import sys
+import hashlib
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
+
+# Reuse singletons to avoid re-initialization overhead on each request
+_MODEL_SINGLETON = None
+_VISION_CLIENT_SINGLETON = None
 
 
 @contextmanager
 def suppress_logs_and_output():
     """
-    Temporarily reduce logging verbosity for noisy libraries while preserving stdout/stderr
-    so agents can return their final answers.
+    No-op: allow normal logging and propagation.
     """
-    previous_levels = {}
-    noisy_loggers = [
-        'smolagents',
-        'httpx',
-        'litellm',
-        'urllib3',
-        'google',
-    ]
-    try:
-        # Store and reduce levels
-        for name in noisy_loggers:
-            logger_obj = logging.getLogger(name)
-            previous_levels[name] = logger_obj.level
-            logger_obj.setLevel(logging.ERROR)
-            logger_obj.propagate = False
-        yield
-    finally:
-        # Restore levels
-        for name in noisy_loggers:
-            logger_obj = logging.getLogger(name)
-            if name in previous_levels:
-                logger_obj.setLevel(previous_levels[name])
-            logger_obj.propagate = True
+    yield
 
 
 @contextmanager
 def suppress_stdout_stderr():
     """
-    Temporarily redirect stdout and stderr to devnull.
+    No-op: keep stdout and stderr visible.
     """
-    old_stdout, old_stderr = sys.stdout, sys.stderr
-    try:
-        with open(os.devnull, 'w') as devnull:
-            sys.stdout, sys.stderr = devnull, devnull
-            yield
-    finally:
-        sys.stdout, sys.stderr = old_stdout, old_stderr
+    yield
 
 
 class FinalizeWaterReportTool(Tool):
@@ -170,105 +146,86 @@ def analyze_water_image(image_bytes: bytes) -> dict:
     Shared analyzer for water body images. Accepts raw image bytes and returns
     a JSON-serializable dict with the final structured report.
     """
+    # Lightweight in-memory cache by image hash to avoid recomputation
+    _CACHE_MAX = 16
+    if not hasattr(analyze_water_image, "_cache"):
+        analyze_water_image._cache = {}  # type: ignore[attr-defined]
+        analyze_water_image._cache_order = []  # type: ignore[attr-defined]
+
+    image_hash = hashlib.sha256(image_bytes).hexdigest()
+    cache = analyze_water_image._cache  # type: ignore[attr-defined]
+    order = analyze_water_image._cache_order  # type: ignore[attr-defined]
+    if image_hash in cache:
+        return cache[image_hash]
+
     with suppress_logs_and_output():
         image = Image.open(io.BytesIO(image_bytes))
+        try:
+            image = image.convert('RGB')
+        except Exception:
+            pass
+        # Downscale very large images to reduce upload+compute cost while preserving detail
+        try:
+            max_dim = 1280
+            if max(image.size) > max_dim:
+                ratio = max_dim / float(max(image.size))
+                new_size = (int(image.size[0] * ratio), int(image.size[1] * ratio))
+                image = image.resize(new_size)
+        except Exception:
+            pass
 
-        vision_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        global _VISION_CLIENT_SINGLETON
+        if _VISION_CLIENT_SINGLETON is None:
+            _VISION_CLIENT_SINGLETON = genai.Client(api_key=settings.GEMINI_API_KEY)
+        vision_client = _VISION_CLIENT_SINGLETON
         vision_prompt = (
-            "You are a vision expert. Given an image of a river or water body, describe in deep detail: "
-            "- Surroundings (landscape, vegetation, infrastructure, shore conditions).\n"
-            "- Potential pollution sources (industrial, agricultural, urban runoff, trash/debris).\n"
-            "- Any visible signage, bridges, landmarks that might hint the approximate location (do NOT guess an address).\n"
-            "- Water appearance (color, clarity, surface patterns), without making chemical claims.\n"
-            "- Weather/lighting and river flow hints (direction, turbulence).\n"
-            "Explicitly list if present: visible trash/garbage, discharge pipes, oil sheen/iridescence, foam/scum, dead fish/wildlife, algal scum/mats.\n"
-            "Tone: realistic and non-alarmist. Benign explanations (natural sediments, plant reflections) should be considered. Clear evidence should be flagged explicitly."
+            "Describe this waterbody image. Be concise (<=120 words). Include: surroundings; visible pollution sources; water appearance (color, clarity, surface patterns); weather/lighting; any explicit strong evidence (trash piles, discharge pipes, oil sheen, dead fish/wildlife, algal mats)."
         )
         vision_response = vision_client.models.generate_content(
             model='gemini-2.5-flash',
-            contents=[vision_prompt, image]
+            contents=[vision_prompt, image],
+            config={
+                'temperature': 0.1,
+                'top_p': 0.9,
+            }
         )
         scene_description = vision_response.text or ""
 
         if getattr(settings, 'GEMINI_API_KEY', None) and 'GEMINI_API_KEY' not in os.environ:
             os.environ['GEMINI_API_KEY'] = settings.GEMINI_API_KEY
-        model = LiteLLMModel(model_id="gemini/gemini-2.5-flash")
 
-        def run_agent(name: str, instruction: str, schema: str) -> str:
-            agent = CodeAgent(tools=[], model=model, additional_authorized_imports=["json"])
-            prompt = (
-                f"You are {name}. Use ONLY the provided scene description below.\n"
-                f"Scene description:\n{scene_description}\n\n"
-                f"Task:\n{instruction}\n"
-                "Write Python code only (no prose). The code must:\n"
-                "- Construct a dict named result that matches this schema exactly: "
-                f"{schema}\n"
-                "- Use concise, factual phrasing; avoid speculation.\n"
-                "- Import json and call final_answer(json.dumps(result, ensure_ascii=False)).\n"
+        global _MODEL_SINGLETON
+        if _MODEL_SINGLETON is None:
+            _MODEL_SINGLETON = LiteLLMModel(
+                model_id="gemini/gemini-2.5-flash",
+                temperature=0,
+                request_timeout=25,
             )
-            with suppress_stdout_stderr():
-                result = agent.run(prompt)
-            return str(result)
+        model = _MODEL_SINGLETON
 
-        agent1_instruction = (
-            "Focus on land, vegetation, and surroundings near the water. Detect signs of pollution sources: "
-            "factories, pipes, industrial zones; agricultural runoff; trash on shores; erosion; algae blooms; dead vegetation. "
-            "Flag STRONG EVIDENCE when clearly visible (trash piles, discharge pipes, dead fish/wildlife). "
-            "Be realistic: do not infer contamination without clear evidence and note benign context as well."
-        )
-        env_schema = "{\\n  \\\"potential_sources\\\": [string,...],\\n  \\\"notes\\\": string\\n}"
-        env_context = run_agent(
-            "Environmental Context Analyzer",
-            agent1_instruction,
-            env_schema,
+        agent = CodeAgent(
+            tools=[],
+            model=model,
+            additional_authorized_imports=["json"],
+            max_steps=1,
         )
 
-        agent2_instruction = (
-            "Focus on the water surface. Assess clarity vs murkiness, turbidity, floating oil/foam/scum, "
-            "suspended particles/sediment, and reflections/light behavior for depth/turbidity hints. "
-            "If oil sheen/iridescence or persistent foam/scum is clearly visible, mark it as STRONG EVIDENCE. "
-            "Be realistic: vegetation reflections and natural sediments can reduce apparent clarity. Avoid assuming pollution from color alone."
-        )
-        surface_schema = "{\\n  \\\"clarity\\\": string,\\n  \\\"turbidity\\\": string,\\n  \\\"surface_contaminants\\\": [string,...],\\n  \\\"notes\\\": string\\n}"
-        surface_report = run_agent(
-            "Water Surface & Clarity Inspector",
-            agent2_instruction,
-            surface_schema,
-        )
-
-        agent3_instruction = (
-            "Focus on the water color spectrum and visible signatures. Consider green shades (algae/eutrophication), "
-            "brown/red tints (iron, clay, natural sediments), blue/clear (generally clean), and iridescence (oil/metals). "
-            "If iridescence consistent with oil/metal films is evident, flag as STRONG EVIDENCE. "
-            "Infer likely risks with cautious language and highlight uncertainty; include plausible benign causes."
-        )
-        color_schema = "{\\n  \\\"observed_colors\\\": [string,...],\\n  \\\"inferred_risks\\\": [string,...],\\n  \\\"notes\\\": string\\n}"
-        color_chem = run_agent(
-            "Color & Chemical Signature Estimator",
-            agent3_instruction,
-            color_schema,
-        )
-
-        final_agent = CodeAgent(tools=[FinalizeWaterReportTool()], model=model, additional_authorized_imports=["json"])
         final_prompt = (
-            "You will be given variables: scene_description (str), env_data (dict), surface_data (dict), color_data (dict).\n"
-            "Steps: 1) derive issues_identified, recommendations, recommended_uses from inputs;\n"
-            "2) choose water_usage_classification from {safe_for_drinking, agricultural_only, recreational_only, unsafe, requires_purification};\n"
-            "3) build exactly 10 usage_parameters with name,value,rationale; 4) set confidence in [0,1] and caveats;\n"
-            "Calibration: be realistic, non-alarmist. Raise risk classification only when STRONG EVIDENCE is present (e.g., trash piles, discharge pipes, oil sheen, dead fish).\n"
-            "Prefer 'recreational_only' or 'requires_purification' when uncertain. Keep recommendations balanced and practical.\n"
-            "5) call finalize_water_report(scene_description, env_data, surface_data, color_data, issues_identified, recommendations, water_usage_classification, recommended_uses, usage_parameters, confidence, caveats) and return it with final_answer.\n"
-            "Output Python code only (no prose)."
+            "Using the given scene_description, produce a single Python dict named result with this exact structure: \n"
+            "environment_context: {potential_sources:[str], notes:str};\n"
+            "surface_clarity: {clarity:str, turbidity:str, surface_contaminants:[str], notes:str};\n"
+            "color_chemistry: {observed_colors:[str], inferred_risks:[str], notes:str};\n"
+            "evaluation: {issues_identified:[str], recommendations:[str], water_usage_classification: one of safe_for_drinking|agricultural_only|recreational_only|unsafe|requires_purification, recommended_uses:[str], usage_parameters:[{name,value,rationale}] (exactly 10), confidence: float 0..1, caveats:[str]}.\n"
+            "Rules: be realistic, avoid speculation, only flag high risk with strong visible evidence.\n"
+            "Output Python code only: import json; build result; final_answer(json.dumps(result, ensure_ascii=False)).\n"
         )
+
         with suppress_stdout_stderr():
             final_report = str(
-                final_agent.run(
+                agent.run(
                     final_prompt,
                     additional_args={
                         'scene_description': scene_description,
-                        'env_data': json.loads(env_context) if isinstance(env_context, str) else env_context,
-                        'surface_data': json.loads(surface_report) if isinstance(surface_report, str) else surface_report,
-                        'color_data': json.loads(color_chem) if isinstance(color_chem, str) else color_chem,
                     }
                 )
             )
@@ -287,11 +244,19 @@ def analyze_water_image(image_bytes: bytes) -> dict:
             return None
 
     final_obj = _try_parse_json(final_report)
-    if final_obj is not None:
-        return final_obj
-    try:
-        return json.loads(final_report)
-    except Exception:
-        return {'final_report': final_report}
+    if final_obj is None:
+        try:
+            final_obj = json.loads(final_report)
+        except Exception:
+            final_obj = {'final_report': final_report}
+
+    # Update cache (simple LRU)
+    cache[image_hash] = final_obj
+    order.append(image_hash)
+    if len(order) > _CACHE_MAX:
+        oldest = order.pop(0)
+        cache.pop(oldest, None)
+
+    return final_obj
 
 

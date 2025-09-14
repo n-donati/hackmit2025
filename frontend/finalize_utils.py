@@ -3,6 +3,7 @@ from smolagents import CodeAgent, LiteLLMModel
 import json
 import os
 from typing import Dict, Any
+import hashlib
 
 # Reuse quieting helpers from waterbody utils if available
 try:
@@ -11,17 +12,30 @@ except Exception:
     from contextlib import contextmanager
     @contextmanager
     def suppress_logs_and_output():
+        # No-op to show logs
         yield
     @contextmanager
     def suppress_stdout_stderr():
+        # No-op to show stdout/stderr
         yield
 
+
+_MODEL_SINGLETON = None
 
 def _ensure_model() -> LiteLLMModel:
     if getattr(settings, 'GEMINI_API_KEY', None) and 'GEMINI_API_KEY' not in os.environ:
         os.environ['GEMINI_API_KEY'] = settings.GEMINI_API_KEY
-    return LiteLLMModel(model_id="gemini/gemini-2.5-flash")
+    global _MODEL_SINGLETON
+    if _MODEL_SINGLETON is None:
+        _MODEL_SINGLETON = LiteLLMModel(
+            model_id="gemini/gemini-2.5-flash",
+            temperature=0,
+        )
+    return _MODEL_SINGLETON
 
+
+_FINALIZE_CACHE = {}
+_FINALIZE_ORDER = []
 
 def finalize_report(combined: Dict[str, Any], use_case: str) -> Dict[str, Any]:
     """
@@ -29,30 +43,24 @@ def finalize_report(combined: Dict[str, Any], use_case: str) -> Dict[str, Any]:
     Returns a Python dict with the exact keys required by the UI.
     """
     model = _ensure_model()
-    agent = CodeAgent(tools=[], model=model, additional_authorized_imports=["json"])
+    agent = CodeAgent(tools=[], model=model, additional_authorized_imports=["json"], max_steps=1)
 
     combined_json = json.dumps(combined, ensure_ascii=False)
     prompt = (
-        "You are a water safety expert. You will receive two variables: combined_json (a JSON string) "
-        "and selected_use (one of 'drinking', 'irrigation', 'human', 'animals').\n\n"
-        "Task: Parse combined_json, then construct a dict named result with EXACTLY these keys: \n"
-        "- water_health_percent: string like '55%' (choose an integer percent and add %).\n"
-        "- current_water_use_cases: concise sentence describing safe uses now.\n"
-        "- potential_dangers: concise sentence on key risks (pathogens, metals, chemicals).\n"
-        "- purify_for_selected_use: one-sentence, actionable purification guidance tailored to selected_use.\n\n"
-        "Calibration: Be realistic and not pessimistic. Minor imperfections (visual tint, small strip deviations) should only slightly reduce the health percent.\n"
-        "If evidence is weak or ambiguous, prefer a moderate score (55–75%) with practical guidance rather than severe warnings.\n"
-        "If combined.waterbody.evaluation contains STRONG EVIDENCE (e.g., visible trash piles, discharge pipes, oil sheen, dead fish), weight risks higher.\n"
-        "Otherwise, treat waterbody classification as a hint and balance with strip analytes. Consider benign explanations (natural sediments, plant reflections).\n"
-        "Tailoring: Align phrasing to selected_use. Do NOT mention drinking or animal consumption if selected_use is irrigation or human.\n"
-        "Solutions: prioritize free/low-cost, accessible steps (settling, cloth filtration, sand/gravel filtration, basic chlorination, SODIS/sun for drinking only, boiling as last resort).\n\n"
-        "Write Python code only. The code must:\n"
-        "- import json\n"
-        "- data = json.loads(combined_json)\n"
-        "- selected = selected_use\n"
-        "- result = { ...exact schema above... }\n"
-        "- final_answer(json.dumps(result, ensure_ascii=False))\n"
+        "Given combined_json (string) and selected_use in {drinking, irrigation, human, animals}, produce dict result with EXACT KEYS: \n"
+        "- water_health_percent: '<int>%';\n"
+        "- current_water_use_cases: one concise sentence;\n"
+        "- potential_dangers: one concise sentence;\n"
+        "- purify_for_selected_use: one concise sentence tailored to selected_use.\n"
+        "Policy: realistic, non-alarmist; if evidence weak, use 55–75%. Weigh strong visual evidence higher; consider benign causes. Tailor phrasing to selected_use.\n"
+        "Output Python only: import json; data=json.loads(combined_json); selected=selected_use; final_answer(json.dumps(result, ensure_ascii=False))."
     )
+
+    # Simple LRU cache to avoid repeated finalizations on same input
+    cache_key = hashlib.sha256((combined_json + "\n" + (use_case or '')).encode('utf-8')).hexdigest()
+    cached = _FINALIZE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
 
     with suppress_logs_and_output(), suppress_stdout_stderr():
         out = str(agent.run(prompt, additional_args={
@@ -111,8 +119,20 @@ def finalize_report(combined: Dict[str, Any], use_case: str) -> Dict[str, Any]:
         parsed['potential_dangers'] = remove_unrelated_mentions(dangers) or dangers
         parsed['purify_for_selected_use'] = remove_unrelated_mentions(purify) or purify
 
-        return parsed
+        result = parsed
     except Exception:
-        return parsed
+        result = parsed
+
+    # Update cache
+    try:
+        _FINALIZE_CACHE[cache_key] = result
+        _FINALIZE_ORDER.append(cache_key)
+        if len(_FINALIZE_ORDER) > 32:
+            old = _FINALIZE_ORDER.pop(0)
+            _FINALIZE_CACHE.pop(old, None)
+    except Exception:
+        pass
+
+    return result
 
 

@@ -71,33 +71,45 @@ def aggregate_analysis(request):
         except ValueError:
             return JsonResponse({'error': 'Invalid lat/lng values'}, status=400)
 
-        # 1) Strips expects base64 JSON payload
+        # 1) Run strip and water analyses in parallel-ish (simple threads)
+        import threading
+
         strip_result = None
         strip_error = None
         strip_received_bytes = 0
-        try:
-            strip_bytes = strip_file.read()
-            strip_received_bytes = len(strip_bytes) if strip_bytes else 0
-            strip_b64 = base64.b64encode(strip_bytes).decode('utf-8') if strip_bytes else ''
-            if not strip_b64:
-                strip_error = 'Empty strip image payload'
-            else:
-                strip_result = process_strip_base64(strip_b64)
-        except Exception as exc:
-            logger.exception("Strip analysis failed")
-            strip_error = str(exc)
 
-        # 2) Waterbody analysis: use first image for now
         water_result = None
         water_error = None
         water_received_bytes = 0
-        try:
-            water_image_bytes = water_files[0].read()
-            water_received_bytes = len(water_image_bytes) if water_image_bytes else 0
-            water_result = analyze_water_image(water_image_bytes)
-        except Exception as exc:
-            logger.exception("Waterbody analysis failed")
-            water_error = str(exc)
+
+        def _analyze_strip():
+            nonlocal strip_result, strip_error, strip_received_bytes
+            try:
+                strip_bytes = strip_file.read()
+                strip_received_bytes = len(strip_bytes) if strip_bytes else 0
+                strip_b64 = base64.b64encode(strip_bytes).decode('utf-8') if strip_bytes else ''
+                if not strip_b64:
+                    strip_error = 'Empty strip image payload'
+                else:
+                    strip_result = process_strip_base64(strip_b64)
+            except Exception as exc:
+                logger.exception("Strip analysis failed")
+                strip_error = str(exc)
+
+        def _analyze_water():
+            nonlocal water_result, water_error, water_received_bytes
+            try:
+                water_image_bytes = water_files[0].read()
+                water_received_bytes = len(water_image_bytes) if water_image_bytes else 0
+                if water_image_bytes:
+                    water_result = analyze_water_image(water_image_bytes)
+            except Exception as exc:
+                logger.exception("Waterbody analysis failed")
+                water_error = str(exc)
+
+        t1 = threading.Thread(target=_analyze_strip)
+        t2 = threading.Thread(target=_analyze_water)
+        t1.start(); t2.start(); t1.join(); t2.join()
 
         # 3) Location static map URL (proxied via our backend endpoint that injects API key)
         static_map_url = f"/location/aerial/?lat={latitude}&lng={longitude}&zoom=16&size=640x400&maptype=satellite"
@@ -125,11 +137,18 @@ def aggregate_analysis(request):
         request.session['last_analysis'] = response
         request.session.modified = True
 
-        # Log final response to backend console
+        # Log concise summary (avoid dumping full JSON)
         try:
-            agg_logger.info("Received strip_bytes=%d water_bytes=%d lat=%s lng=%s",
-                            strip_received_bytes, water_received_bytes, latitude, longitude)
-            agg_logger.info("Final aggregated response: %s", json.dumps(response, ensure_ascii=False))
+            num_analytes = (response.get('strip') or {}).get('num_analytes')
+            agg_logger.info(
+                "Aggregated summary: strip_bytes=%d water_bytes=%d analytes=%s water_present=%s lat=%s lng=%s",
+                strip_received_bytes,
+                water_received_bytes,
+                num_analytes,
+                bool(response.get('waterbody')),
+                latitude,
+                longitude,
+            )
         except Exception:
             pass
 
@@ -191,26 +210,38 @@ def aggregate_finalize(request):
             except Exception:
                 pass
 
-            # Analyze strip
-            strip_result = None
-            try:
-                strip_bytes = strip_file.read()
-                strip_b64 = base64.b64encode(strip_bytes).decode('utf-8') if strip_bytes else ''
-                if not strip_b64:
-                    return JsonResponse({'error': 'Empty strip image payload'}, status=400)
-                strip_result = process_strip_base64(strip_b64)
-            except Exception as exc:
-                agg_logger.exception("[FINALIZE] Strip analysis failed: %s", str(exc))
-                strip_result = {}
-
-            # Analyze waterbody (first image)
+            # Analyze strip and water in parallel
+            import threading
+            strip_result = {}
             water_result = None
-            try:
-                water_image_bytes = water_files[0].read()
-                water_result = analyze_water_image(water_image_bytes) if water_image_bytes else None
-            except Exception as exc:
-                agg_logger.exception("[FINALIZE] Waterbody analysis failed: %s", str(exc))
-                water_result = None
+            strip_error = None
+            water_error = None
+
+            def _s():
+                nonlocal strip_result, strip_error
+                try:
+                    strip_bytes = strip_file.read()
+                    strip_b64 = base64.b64encode(strip_bytes).decode('utf-8') if strip_bytes else ''
+                    if not strip_b64:
+                        strip_error = 'Empty strip image payload'
+                    else:
+                        strip_result = process_strip_base64(strip_b64)
+                except Exception as exc:
+                    agg_logger.exception("[FINALIZE] Strip analysis failed: %s", str(exc))
+                    strip_result = {}
+
+            def _w():
+                nonlocal water_result, water_error
+                try:
+                    water_image_bytes = water_files[0].read()
+                    water_result = analyze_water_image(water_image_bytes) if water_image_bytes else None
+                except Exception as exc:
+                    agg_logger.exception("[FINALIZE] Waterbody analysis failed: %s", str(exc))
+                    water_result = None
+
+            t1 = threading.Thread(target=_s)
+            t2 = threading.Thread(target=_w)
+            t1.start(); t2.start(); t1.join(); t2.join()
 
             static_map_url = f"/location/aerial/?lat={latitude}&lng={longitude}&zoom=16&size=640x400&maptype=satellite"
             combined = {
@@ -231,7 +262,13 @@ def aggregate_finalize(request):
             except Exception:
                 pass
             try:
-                ai_result = finalize_report(combined, user_use_case)
+                # Pass a minimized input to the AI to avoid duplicate/noisy strip payloads
+                ai_input = {
+                    'strip': {'values': strip_result or {}},
+                    'waterbody': water_result or None,
+                    'location': {'lat': latitude, 'lng': longitude},
+                }
+                ai_result = finalize_report(ai_input, user_use_case)
                 # Attach selected use and a title hint for the UI
                 use_titles = {
                     'drinking': 'Purify for Drinking Use',
@@ -328,7 +365,19 @@ def aggregate_finalize(request):
 
         # Use smolagents synthesizer for final JSON; fallback to heuristic result if it fails
         try:
-            ai_result = finalize_report(data, user_use_case or '')
+            # Build minimized AI input: only pass strip values, basic location, and waterbody
+            strip_values = {}
+            try:
+                strip_values = ((data.get('strip') or {}).get('values') or {}) if isinstance(data.get('strip'), dict) else {}
+            except Exception:
+                strip_values = {}
+            loc = data.get('location') or {}
+            ai_input = {
+                'strip': {'values': strip_values},
+                'waterbody': data.get('waterbody') or None,
+                'location': {'lat': loc.get('lat'), 'lng': loc.get('lng')},
+            }
+            ai_result = finalize_report(ai_input, user_use_case or '')
             use_titles = {
                 'drinking': 'Purify for Drinking Use',
                 'irrigation': 'Purify for Irrigation Use',
