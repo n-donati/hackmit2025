@@ -94,7 +94,17 @@ def finalize_report(combined: Dict[str, Any], use_case: str) -> Dict[str, Any]:
     Returns a Python dict with the exact keys required by the UI.
     """
     model = _ensure_model()
-    agent = CodeAgent(tools=[], model=model, additional_authorized_imports=["json"], max_steps=1)
+    agent = CodeAgent(
+        tools=[],
+        model=model,
+        additional_authorized_imports=["json"],
+        max_steps=1,
+        verbosity_level=0,
+        instructions=(
+            "Single-pass execution. Do not plan, reflect, or call tools. "
+            "Output final_answer immediately in the requested JSON format."
+        ),
+    )
 
     combined_json = json.dumps(combined, ensure_ascii=False)
     strip_context_text = _format_strip_context_text(combined)
@@ -107,6 +117,13 @@ def finalize_report(combined: Dict[str, Any], use_case: str) -> Dict[str, Any]:
         "- purify_for_selected_use: one concise sentence tailored to selected_use.\n"
         "Policy: realistic, non-alarmist; if evidence weak, use 55–75%. Weigh strong visual evidence higher; consider benign causes. Tailor phrasing to selected_use. If selected_use == 'human', interpret as non-consumptive hygiene/cleaning only (e.g., showering, bathing, laundry); never recommend or imply drinking. If location.hint exists (e.g., country/region), you may adapt guidance to typical local constraints; do not hallucinate precise places.\n"
         "Strip guidance: treat strip test context as LOW-CONFIDENCE, supplementary only. Prefer non-strip sources (visual waterbody analysis, general knowledge, location). If strip context conflicts or is ambiguous, ignore it. Do not change water_health_percent by more than ±10% based solely on strip context.\n\n"
+        "Selected-use focus (repeat): Tailor ALL fields EXCLUSIVELY to selected_use; do not mention other uses.\n"
+        "If selected_use == 'drinking': write only for drinking.\n"
+        "If selected_use == 'irrigation': write only for irrigation.\n"
+        "If selected_use == 'human' (hygiene/cleaning): NEVER imply drinking; write only for hygiene/cleaning.\n"
+        "If selected_use == 'animals': write only for animals.\n"
+        "selected_use ONLY. selected_use ONLY. selected_use ONLY. selected_use ONLY. selected_use ONLY.\n\n"
+        "Speed: single-pass only; no planning or chain-of-thought; be concise; output immediately.\n\n"
         "Additional context (plain text; do not parse into structured data):\n"
         "Reference ranges:\n" + _REFERENCE_RANGES_TEXT + "\n\n"
         "Strip test context (low-confidence):\n" + (strip_context_text or "(none)") + "\n\n"
@@ -206,7 +223,17 @@ def generate_detailed_plan(final_result: Dict[str, Any], analysis: Dict[str, Any
     {title, description} items. Uses the same model singleton for efficiency.
     """
     model = _ensure_model()
-    agent = CodeAgent(tools=[], model=model, additional_authorized_imports=["json"], max_steps=1)
+    agent = CodeAgent(
+        tools=[],
+        model=model,
+        additional_authorized_imports=["json"],
+        max_steps=1,
+        verbosity_level=0,
+        instructions=(
+            "Single-pass execution. Do not plan, reflect, or call tools. "
+            "Output final_answer immediately in the requested JSON format."
+        ),
+    )
 
     # Build compact context with plain-text strip info
     strip_text = _format_strip_context_text(analysis if isinstance(analysis, dict) else None)
@@ -232,6 +259,13 @@ def generate_detailed_plan(final_result: Dict[str, Any], analysis: Dict[str, Any
         "- Start with low-cost actions (settling, cloth/sand filtration), then progressive disinfection options (chlorine/boil/UV) as appropriate.\n"
         "- If strong evidence of risk exists, include extra caution and monitoring.\n"
         "- Avoid brand names; keep steps actionable and safe.\n\n"
+        "Selected-use focus (repeat): The plan MUST target final.selected_use ONLY; do not mention other uses.\n"
+        "If final.selected_use == 'drinking': write only for drinking.\n"
+        "If final.selected_use == 'irrigation': write only for irrigation.\n"
+        "If final.selected_use == 'human' (hygiene/cleaning): NEVER imply drinking; write only for hygiene/cleaning.\n"
+        "If final.selected_use == 'animals': write only for animals.\n"
+        "final.selected_use ONLY. final.selected_use ONLY. final.selected_use ONLY. final.selected_use ONLY. final.selected_use ONLY.\n\n"
+        "Speed: single-pass only; no planning or chain-of-thought; be concise; output immediately.\n\n"
         "Output Python only: import json; ctx=json.loads(ctx_json); final_answer(json.dumps(steps, ensure_ascii=False))."
     )
 

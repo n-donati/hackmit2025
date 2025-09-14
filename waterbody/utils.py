@@ -213,6 +213,11 @@ def analyze_water_image(image_bytes: bytes) -> dict:
             model=model,
             additional_authorized_imports=["json"],
             max_steps=1,
+            verbosity_level=0,
+            instructions=(
+                "Single-pass execution. Do not plan, reflect, or call tools. "
+                "Output final_answer immediately in the requested JSON format."
+            ),
         )
 
         final_prompt = (
@@ -222,6 +227,7 @@ def analyze_water_image(image_bytes: bytes) -> dict:
             "color_chemistry: {observed_colors:[str], inferred_risks:[str], notes:str};\n"
             "evaluation: {issues_identified:[str], recommendations:[str], water_usage_classification: one of safe_for_drinking|agricultural_only|recreational_only|unsafe|requires_purification, recommended_uses:[str], usage_parameters:[{name,value,rationale}] (exactly 10), confidence: float 0..1, caveats:[str]}.\n"
             "Rules: be realistic, avoid speculation, only flag high risk with strong visible evidence.\n"
+            "Speed: single-pass only; no planning or chain-of-thought; be concise; output immediately.\n"
             "Output Python code only: import json; build result; final_answer(json.dumps(result, ensure_ascii=False)).\n"
         )
 
