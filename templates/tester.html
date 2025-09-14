@@ -366,26 +366,10 @@
             border-radius: 8px;
         }
         
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 100%;
-            max-width: 390px;
-            background: white;
-            border-top: 1px solid rgba(12.83, 80.45, 205.23, 0.10);
-            padding: 14px 20px;
-            display: flex;
-            justify-content: space-between;
-            z-index: 1000;
-        }
+        /* Bottom nav styles centralized in components/navbar.html */
         
         @media (min-width: 768px) {
-            .bottom-nav {
-                max-width: 600px;
-                border-radius: 0 0 20px 20px;
-            }
+            /* Bottom nav styles centralized in components/navbar.html */
         }
         
         .nav-item {
@@ -577,32 +561,7 @@
             </button>
         </div>
         
-        <nav class="bottom-nav">
-            <button class="nav-item" onclick="navigateTo('home')">
-                <div class="nav-icon">
-                    <img src="../static/images/home.svg" alt="Home">
-                </div>
-                <div class="nav-text">Home</div>
-            </button>
-            <button class="nav-item active" onclick="navigateTo('analysis')">
-                <div class="nav-icon">
-                    <img src="../static/images/analysis.svg" alt="Analysis">
-                </div>
-                <div class="nav-text">Analysis</div>
-            </button>
-            <button class="nav-item" onclick="navigateTo('results')">
-                <div class="nav-icon">
-                    <img src="../static/images/result.svg" alt="Results">
-                </div>
-                <div class="nav-text">Results</div>
-            </button>
-            <button class="nav-item" onclick="navigateTo('statistics')">
-                <div class="nav-icon">
-                    <img src="../static/images/stat.svg" alt="Statistics">
-                </div>
-                <div class="nav-text">Statistics</div>
-            </button>
-        </nav>
+        {% include 'components/navbar.html' with active_tab='analysis' %}
     </div>
     
     <script>

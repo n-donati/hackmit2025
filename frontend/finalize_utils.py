@@ -2,7 +2,7 @@ from django.conf import settings
 from smolagents import CodeAgent, LiteLLMModel
 import json
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List
 import hashlib
 import time
 
@@ -142,5 +142,85 @@ def finalize_report(combined: Dict[str, Any], use_case: str) -> Dict[str, Any]:
         pass
 
     return result
+
+
+def generate_detailed_plan(final_result: Dict[str, Any], analysis: Dict[str, Any] | None = None) -> List[Dict[str, str]]:
+    """
+    Generate a step-by-step purification plan using smolagents. Returns a list of
+    {title, description} items. Uses the same model singleton for efficiency.
+    """
+    model = _ensure_model()
+    agent = CodeAgent(tools=[], model=model, additional_authorized_imports=["json"], max_steps=1)
+
+    # Build compact context
+    ctx = {
+        'final': final_result or {},
+        'strip_values': ((analysis or {}).get('strip') or {}).get('values') if isinstance(analysis, dict) else None,
+        'waterbody': (analysis or {}).get('waterbody') if isinstance(analysis, dict) else None,
+        'location': (analysis or {}).get('location') if isinstance(analysis, dict) else None,
+    }
+    ctx_json = json.dumps(ctx, ensure_ascii=False)
+
+    prompt = (
+        "You are a water safety practitioner. Given ctx_json, generate a detailed purification plan.\n"
+        "Inputs: ctx_json has keys: final (LLM summary with selected use, dangers, purify guidance, percent),\n"
+        "optional strip_values (mapping of analyte->value), optional waterbody (evaluation & observations), optional location (lat,lng,hint).\n\n"
+        "Task: Produce a Python list named steps of 6–10 items. Each item is a dict:\n"
+        "{ 'title': short string, 'description': 2–4 sentences }.\n\n"
+        "Policy:\n"
+        "- Align with final.selected_use (non-consumptive if 'human': showering, bathing, laundry; do not imply drinking).\n"
+        "- Be realistic, non-alarmist. Adapt to location.hint only if present (country/region).\n"
+        "- Start with low-cost actions (settling, cloth/sand filtration), then progressive disinfection options (chlorine/boil/UV) as appropriate.\n"
+        "- If strong evidence of risk exists, include extra caution and monitoring.\n"
+        "- Avoid brand names; keep steps actionable and safe.\n\n"
+        "Output Python only: import json; ctx=json.loads(ctx_json); final_answer(json.dumps(steps, ensure_ascii=False))."
+    )
+
+    with suppress_logs_and_output(), suppress_stdout_stderr():
+        t0 = time.time()
+        out = str(agent.run(prompt, additional_args={
+            'ctx_json': ctx_json,
+        }))
+        t1 = time.time()
+        try:
+            print(f"[DETAILED] agent_run={t1 - t0:.2f}s")
+        except Exception:
+            pass
+
+    # Parse robustly to list[dict]
+    def _try_parse_list(text: str):
+        try:
+            data = json.loads(text)
+            return data if isinstance(data, list) else None
+        except Exception:
+            start = text.find('[')
+            end = text.rfind(']')
+            if start != -1 and end != -1 and end > start:
+                try:
+                    data = json.loads(text[start:end+1])
+                    return data if isinstance(data, list) else None
+                except Exception:
+                    return None
+            return None
+
+    steps = _try_parse_list(out) or []
+    normalized: List[Dict[str, str]] = []
+    for idx, item in enumerate(steps):
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get('title') or f"Step {idx+1}").strip()
+        desc = str(item.get('description') or "").strip()
+        if not desc:
+            continue
+        normalized.append({'title': title, 'description': desc})
+
+    if not normalized:
+        normalized = [
+            {'title': 'Filter water through cloth/sand', 'description': 'Use a clean cloth or sand/gravel filter to remove visible particles and sediments. Repeat until water looks clear.'},
+            {'title': 'Disinfect appropriately', 'description': 'Use chlorine, UV, or boiling depending on availability. Adjust dose and contact time; if boiling, bring to a rolling boil for at least 1 minute.'},
+            {'title': 'Safe storage', 'description': 'Store in clean, covered containers. Avoid recontamination; use ladles or taps rather than dipping hands.'},
+        ]
+
+    return normalized
 
 

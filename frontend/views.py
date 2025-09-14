@@ -13,7 +13,7 @@ from strips.process_image import process_image as process_strip_base64
 from strips.utils import build_strip_final
 from waterbody.utils import analyze_water_image
 from location.utils import reverse_geocode
-from .finalize_utils import finalize_report
+from .finalize_utils import finalize_report, generate_detailed_plan
 
 
 def home(request):
@@ -26,6 +26,10 @@ def choices(request):
 
 def health(request):
     return render(request, 'health.html')
+
+
+def detailed(request):
+    return render(request, 'detailed.html')
 
 
 def analysis(request):
@@ -51,6 +55,16 @@ agg_logger.propagate = False
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def detailed_plan(request):
+    try:
+        body = json.loads(request.body.decode('utf-8'))
+        final_result = body.get('final_result') or {}
+        analysis = body.get('analysis') or {}
+        steps = generate_detailed_plan(final_result, analysis)
+        return JsonResponse({'steps': steps})
+    except Exception as e:
+        logger.exception("[DETAILED] Failed to generate plan")
+        return JsonResponse({'error': 'failed_to_generate'}, status=500)
 def aggregate_analysis(request):
     try:
         # Files

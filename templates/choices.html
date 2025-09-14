@@ -206,76 +206,7 @@
             width: 100%;
         }
         
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 100%;
-            max-width: 390px;
-            background: white;
-            border-top: 1px solid rgba(12.83, 80.45, 205.23, 0.10);
-            padding: 14px 20px;
-            display: flex;
-            justify-content: space-between;
-            z-index: 1000;
-        }
-        
-        @media (min-width: 768px) {
-            .bottom-nav {
-                max-width: 600px;
-                border-radius: 0 0 20px 20px;
-            }
-        }
-        
-        .nav-item {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2px;
-            padding: 4px;
-            border: none;
-            background: none;
-            cursor: pointer;
-            transition: all 0.2s;
-            border-radius: 8px;
-        }
-        
-        .nav-item:hover {
-            background: rgba(12.83, 80.45, 205.23, 0.05);
-        }
-        
-        .nav-item.active {
-            color: #0D50CD;
-        }
-        
-        .nav-icon {
-            width: 24px;
-            height: 24px;
-            margin-bottom: 2px;
-        }
-        
-        .nav-icon img {
-            width: 100%;
-            height: 100%;
-            filter: brightness(0);
-        }
-        
-        .nav-item.active .nav-icon img {
-            filter: brightness(0) saturate(100%) invert(27%) sepia(51%) saturate(2878%) hue-rotate(346deg) brightness(104%) contrast(97%);
-        }
-        
-        .nav-text {
-            color: #020617;
-            font-size: 12px;
-            font-weight: 500;
-            line-height: 1.2;
-        }
-        
-        .nav-item.active .nav-text {
-            color: #0D50CD;
-        }
+        /* Bottom nav styles centralized in components/navbar.html */
         
         @media (max-width: 390px) {
             .container {
@@ -361,32 +292,7 @@
             </div>
         </div>
         
-        <nav class="bottom-nav">
-            <button class="nav-item" onclick="navigateTo('home')">
-                <div class="nav-icon">
-                    <img src="../static/images/home.svg" alt="Home">
-                </div>
-                <div class="nav-text">Home</div>
-            </button>
-            <button class="nav-item active" onclick="navigateTo('analysis')">
-                <div class="nav-icon">
-                    <img src="../static/images/analysis.svg" alt="Analysis">
-                </div>
-                <div class="nav-text">Analysis</div>
-            </button>
-            <button class="nav-item" onclick="navigateTo('results')">
-                <div class="nav-icon">
-                    <img src="../static/images/result.svg" alt="Results">
-                </div>
-                <div class="nav-text">Results</div>
-            </button>
-            <button class="nav-item" onclick="navigateTo('statistics')">
-                <div class="nav-icon">
-                    <img src="../static/images/stat.svg" alt="Statistics">
-                </div>
-                <div class="nav-text">Statistics</div>
-            </button>
-        </nav>
+        {% include 'components/navbar.html' with active_tab='analysis' %}
     </div>
     
     <script>

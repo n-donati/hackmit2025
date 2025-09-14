@@ -130,25 +130,7 @@
   }
 
 
-  .bottom-nav{
-    position:fixed; left:50%; transform:translateX(-50%);
-    bottom:0; width:100%; max-width:390px; background:#fff;
-    border-top:1px solid rgba(13,80,205,.12);
-    display:flex; justify-content:space-between; padding:12px 18px; z-index:50;
-  }
-  @media (min-width:768px){ .bottom-nav{max-width:600px; border-radius:0 0 20px 20px}}
-  .nav-item{
-    flex:1; display:flex; flex-direction:column; gap:2px; align-items:center;
-    background:none; border:0; padding:4px 2px; cursor:pointer; border-radius:8px;
-  }
-  .nav-item:hover{background:rgba(13,80,205,.06)}
-  .nav-item .nav-text{font-size:12px; font-weight:600; color:#0b1b39}
-  .nav-icon{width:22px; height:22px; margin-bottom:2px}
-  .nav-icon img{width:100%; height:100%; filter:brightness(0)}
-  .nav-item.active .nav-text{color:var(--blue)}
-  .nav-item.active .nav-icon img{
-    filter:brightness(0) saturate(100%) invert(27%) sepia(51%) saturate(2878%) hue-rotate(346deg) brightness(104%) contrast(97%);
-  }
+  /* Bottom nav styles centralized in components/navbar.html */
 
 
   img, svg{pointer-events:none; -webkit-user-drag:none; user-select:none}
@@ -182,7 +164,7 @@
         <p id="dangers-text">
           This water may contain bacteria, viruses, heavy metals, or chemical contaminants. Consuming it can lead to gastrointestinal illness, skin irritation, or long-term health issues.
         </p>
-        <button class="btn-light" onclick="learnMore()">Learn more</button>
+        <!-- <button class="btn-light" onclick="learnMore()">Learn more</button> -->
       </section>
 
   
@@ -197,24 +179,7 @@
     </main>
 
 
-    <nav class="bottom-nav" aria-label="Primary">
-      <button class="nav-item" onclick="navigateTo('home', event)">
-        <div class="nav-icon"><img src="../static/images/home.svg" alt=""></div>
-        <div class="nav-text">Home</div>
-      </button>
-      <button class="nav-item active" onclick="navigateTo('analysis', event)">
-        <div class="nav-icon"><img src="../static/images/analysis.svg" alt=""></div>
-        <div class="nav-text">Analysis</div>
-      </button>
-      <button class="nav-item" onclick="navigateTo('results', event)">
-        <div class="nav-icon"><img src="../static/images/result.svg" alt=""></div>
-        <div class="nav-text">Results</div>
-      </button>
-      <button class="nav-item" onclick="navigateTo('statistics', event)">
-        <div class="nav-icon"><img src="../static/images/stat.svg" alt=""></div>
-        <div class="nav-text">Statistics</div>
-      </button>
-    </nav>
+    {% include 'components/navbar.html' with active_tab='results' %}
   </div>
 
 <script>
@@ -310,13 +275,28 @@
   window.learnMore = function(){
     const label = (window.currentChoice === 'human') ? 'washing' : (window.currentChoice || 'irrigation');
     console.log('[HEALTH] Learn more clicked for:', label);
-    alert(`Learn more about ${label}`);
+    // alert(`Learn more about ${label}`);
   };
 
-  window.getDetailedPlan = function(){
-    const label = (window.currentChoice === 'human') ? 'washing' : (window.currentChoice || 'irrigation');
-    console.log('[HEALTH] Detailed plan clicked for:', label);
-    alert(`Get detailed plan for ${label}`);
+  window.getDetailedPlan = async function(){
+    try{
+      const finalStr = sessionStorage.getItem('final_result');
+      const analysisStr = sessionStorage.getItem('last_analysis');
+      const final_result = finalStr ? JSON.parse(finalStr) : {};
+      const analysis = analysisStr ? JSON.parse(analysisStr) : {};
+      const res = await fetch('/plan/detailed/', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ final_result, analysis })
+      });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Failed');
+      sessionStorage.setItem('detailed_steps', JSON.stringify(data.steps||[]));
+      window.location.href = '/detailed/';
+    }catch(e){
+      console.error('[HEALTH] detailed plan failed', e);
+      alert('Failed to generate detailed plan. Please try again.');
+    }
   };
 </script>
 
