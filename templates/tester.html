@@ -181,6 +181,14 @@
             cursor: pointer;
         }
         
+        .delete-icon {
+            cursor: pointer;
+            color: #ff0000;
+            font-size: 16px;
+            margin-left: 8px;
+            font-weight: bold;
+        }
+        
         .section-description {
             color: #8B8B8B;
             font-size: 14px;
@@ -504,7 +512,7 @@
                             <div class="upload-icon">
                                 <img src="../static/images/upload.svg" alt="Upload">
                             </div>
-                            <div class="upload-text">Upload your picture here</div>
+                            <div class="upload-text" id="testStripText">Upload your picture here</div>
                             <div class="upload-browse">Browse</div>
                         </div>
                         <input type="file" id="testStripInput" class="file-input" accept="image/*">
@@ -530,7 +538,7 @@
                             <div class="upload-icon">
                                 <img src="../static/images/upload.svg" alt="Upload">
                             </div>
-                            <div class="upload-text">Upload your pictures here</div>
+                            <div class="upload-text" id="waterBodyText">Upload your pictures here</div>
                             <div class="upload-browse">Browse</div>
                         </div>
                         <input type="file" id="waterBodyInput" class="file-input" accept="image/*" multiple>
@@ -744,16 +752,29 @@
         
 
         document.getElementById('testStripInput').addEventListener('change', function(e) {
-            if (e.target.files.length > 0) {
-                console.log('Test strip file selected:', e.target.files[0].name);
+            const file = e.target.files[0];
+            const textEl = document.getElementById('testStripText');
+            if (file) {
+                textEl.innerHTML = `${file.name} <span class="delete-icon" onclick="event.stopPropagation(); clearFile('testStripInput', 'testStripText', 'Upload your picture here')">×</span>`;
+            } else {
+                textEl.innerHTML = 'Upload your picture here';
             }
         });
         
         document.getElementById('waterBodyInput').addEventListener('change', function(e) {
-            if (e.target.files.length > 0) {
-                console.log('Water body files selected:', e.target.files.length);
+            const files = e.target.files;
+            const textEl = document.getElementById('waterBodyText');
+            if (files.length > 0) {
+                textEl.innerHTML = `${files.length} file(s) selected <span class="delete-icon" onclick="event.stopPropagation(); clearFile('waterBodyInput', 'waterBodyText', 'Upload your pictures here')">×</span>`;
+            } else {
+                textEl.innerHTML = 'Upload your pictures here';
             }
         });
+        
+        function clearFile(inputId, textId, defaultText) {
+            document.getElementById(inputId).value = '';
+            document.getElementById(textId).innerHTML = defaultText;
+        }
         
     
         let map;
