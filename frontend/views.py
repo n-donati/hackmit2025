@@ -7,6 +7,7 @@ import base64
 import json
 import logging
 import sys
+import time
 
 from strips.process_image import process_image as process_strip_base64
 from strips.utils import build_strip_final
@@ -85,6 +86,7 @@ def aggregate_analysis(request):
         def _analyze_strip():
             nonlocal strip_result, strip_error, strip_received_bytes
             try:
+                t0 = time.time()
                 strip_bytes = strip_file.read()
                 strip_received_bytes = len(strip_bytes) if strip_bytes else 0
                 strip_b64 = base64.b64encode(strip_bytes).decode('utf-8') if strip_bytes else ''
@@ -92,6 +94,8 @@ def aggregate_analysis(request):
                     strip_error = 'Empty strip image payload'
                 else:
                     strip_result = process_strip_base64(strip_b64)
+                t1 = time.time()
+                agg_logger.info("[AGG] strip_analysis=%.2fs", t1 - t0)
             except Exception as exc:
                 logger.exception("Strip analysis failed")
                 strip_error = str(exc)
@@ -99,10 +103,13 @@ def aggregate_analysis(request):
         def _analyze_water():
             nonlocal water_result, water_error, water_received_bytes
             try:
+                t0 = time.time()
                 water_image_bytes = water_files[0].read()
                 water_received_bytes = len(water_image_bytes) if water_image_bytes else 0
                 if water_image_bytes:
                     water_result = analyze_water_image(water_image_bytes)
+                t1 = time.time()
+                agg_logger.info("[AGG] water_analysis=%.2fs", t1 - t0)
             except Exception as exc:
                 logger.exception("Waterbody analysis failed")
                 water_error = str(exc)
@@ -220,12 +227,15 @@ def aggregate_finalize(request):
             def _s():
                 nonlocal strip_result, strip_error
                 try:
+                    t0 = time.time()
                     strip_bytes = strip_file.read()
                     strip_b64 = base64.b64encode(strip_bytes).decode('utf-8') if strip_bytes else ''
                     if not strip_b64:
                         strip_error = 'Empty strip image payload'
                     else:
                         strip_result = process_strip_base64(strip_b64)
+                    t1 = time.time()
+                    agg_logger.info("[FINALIZE] strip_analysis=%.2fs", t1 - t0)
                 except Exception as exc:
                     agg_logger.exception("[FINALIZE] Strip analysis failed: %s", str(exc))
                     strip_result = {}
@@ -233,8 +243,11 @@ def aggregate_finalize(request):
             def _w():
                 nonlocal water_result, water_error
                 try:
+                    t0 = time.time()
                     water_image_bytes = water_files[0].read()
                     water_result = analyze_water_image(water_image_bytes) if water_image_bytes else None
+                    t1 = time.time()
+                    agg_logger.info("[FINALIZE] water_analysis=%.2fs", t1 - t0)
                 except Exception as exc:
                     agg_logger.exception("[FINALIZE] Waterbody analysis failed: %s", str(exc))
                     water_result = None
@@ -263,12 +276,15 @@ def aggregate_finalize(request):
                 pass
             try:
                 # Pass a minimized input to the AI to avoid duplicate/noisy strip payloads
+                t0 = time.time()
                 ai_input = {
                     'strip': {'values': strip_result or {}},
                     'waterbody': water_result or None,
                     'location': {'lat': latitude, 'lng': longitude},
                 }
                 ai_result = finalize_report(ai_input, user_use_case)
+                t1 = time.time()
+                agg_logger.info("[FINALIZE] finalize_agent=%.2fs", t1 - t0)
                 # Attach selected use and a title hint for the UI
                 use_titles = {
                     'drinking': 'Purify for Drinking Use',
@@ -366,6 +382,7 @@ def aggregate_finalize(request):
         # Use smolagents synthesizer for final JSON; fallback to heuristic result if it fails
         try:
             # Build minimized AI input: only pass strip values, basic location, and waterbody
+            t0 = time.time()
             strip_values = {}
             try:
                 strip_values = ((data.get('strip') or {}).get('values') or {}) if isinstance(data.get('strip'), dict) else {}
@@ -378,6 +395,8 @@ def aggregate_finalize(request):
                 'location': {'lat': loc.get('lat'), 'lng': loc.get('lng')},
             }
             ai_result = finalize_report(ai_input, user_use_case or '')
+            t1 = time.time()
+            agg_logger.info("[FINALIZE] finalize_agent=%.2fs", t1 - t0)
             use_titles = {
                 'drinking': 'Purify for Drinking Use',
                 'irrigation': 'Purify for Irrigation Use',

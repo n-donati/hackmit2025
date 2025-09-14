@@ -4,6 +4,7 @@ import json
 import os
 from typing import Dict, Any
 import hashlib
+import time
 
 # Reuse quieting helpers from waterbody utils if available
 try:
@@ -63,10 +64,17 @@ def finalize_report(combined: Dict[str, Any], use_case: str) -> Dict[str, Any]:
         return cached
 
     with suppress_logs_and_output(), suppress_stdout_stderr():
+        t0 = time.time()
         out = str(agent.run(prompt, additional_args={
             'combined_json': combined_json,
             'selected_use': use_case,
         }))
+        t1 = time.time()
+        try:
+            # Use print so it always shows up even if logging is configured differently
+            print(f"[FINALIZE] agent_run={t1 - t0:.2f}s")
+        except Exception:
+            pass
 
     # Robust parse
     try:

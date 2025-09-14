@@ -9,6 +9,7 @@ import os
 import sys
 import hashlib
 from contextlib import contextmanager
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +160,7 @@ def analyze_water_image(image_bytes: bytes) -> dict:
         return cache[image_hash]
 
     with suppress_logs_and_output():
+        t0 = time.time()
         image = Image.open(io.BytesIO(image_bytes))
         try:
             image = image.convert('RGB')
@@ -181,6 +183,7 @@ def analyze_water_image(image_bytes: bytes) -> dict:
         vision_prompt = (
             "Describe this waterbody image. Be concise (<=120 words). Include: surroundings; visible pollution sources; water appearance (color, clarity, surface patterns); weather/lighting; any explicit strong evidence (trash piles, discharge pipes, oil sheen, dead fish/wildlife, algal mats)."
         )
+        t_prep = time.time()
         vision_response = vision_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=[vision_prompt, image],
@@ -190,6 +193,8 @@ def analyze_water_image(image_bytes: bytes) -> dict:
             }
         )
         scene_description = vision_response.text or ""
+        t_vision = time.time()
+        logger.info("[WATERBODY] prep=%.2fs vision=%.2fs", t_prep - t0, t_vision - t_prep)
 
         if getattr(settings, 'GEMINI_API_KEY', None) and 'GEMINI_API_KEY' not in os.environ:
             os.environ['GEMINI_API_KEY'] = settings.GEMINI_API_KEY
@@ -221,6 +226,7 @@ def analyze_water_image(image_bytes: bytes) -> dict:
         )
 
         with suppress_stdout_stderr():
+            t_agent_start = time.time()
             final_report = str(
                 agent.run(
                     final_prompt,
@@ -229,6 +235,8 @@ def analyze_water_image(image_bytes: bytes) -> dict:
                     }
                 )
             )
+            t_agent_end = time.time()
+            logger.info("[WATERBODY] agent=%.2fs total=%.2fs", t_agent_end - t_agent_start, t_agent_end - t0)
 
     def _try_parse_json(text: str):
         try:
