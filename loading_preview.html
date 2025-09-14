@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading Component Preview</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .preview-container {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .preview-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .preview-description {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+
+        .demo-button {
+            background: #0D50CD;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+
+        .demo-button:hover {
+            background: #0a3fa0;
+            transform: translateY(-2px);
+        }
+
+        .demo-button:active {
+            transform: translateY(0);
+        }
+
+        .demo-button.is-pressed {
+            background: #083580;
+            transform: scale(0.95);
+        }
+
+        .controls {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .control-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="preview-container">
+        <h1 class="preview-title">🌊 Loading Component Preview</h1>
+        <p class="preview-description">
+            This preview shows how your water logo loading animation will appear when users make their final choice in the app.
+        </p>
+        
+        <button class="demo-button" onclick="showLoading()">
+            🚀 Trigger Loading Animation
+        </button>
+        
+        <div class="controls">
+            <div class="control-label">Demo Controls:</div>
+            <button class="demo-button" onclick="showLoading(3000)">3 Second Demo</button>
+            <button class="demo-button" onclick="showLoading(5000)">5 Second Demo</button>
+            <button class="demo-button" onclick="showLoading(10000)">10 Second Demo</button>
+            <button class="demo-button" onclick="showLoading(30000)" style="background: linear-gradient(135deg, #28a745, #20c997);">30 Second Test</button>
+        </div>
+    </div>
+
+    <script>
+        async function showLoading(duration = 3000) {
+            // Get the button that was clicked
+            const btn = event.target;
+            
+            // Add pressed animation
+            if (btn) {
+                btn.classList.add('is-pressed');
+            }
+            
+            // Delay before showing loader (matches your app)
+            await new Promise(r => setTimeout(r, 500));
+            
+            // Create the loading overlay (exact copy from your app)
+            const overlay = document.createElement('div');
+            overlay.id = 'loaderOverlay';
+            overlay.style.position = 'fixed';
+            overlay.style.inset = '0';
+            overlay.style.background = '#ffffff';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.style.zIndex = '9999';
+            overlay.innerHTML = `
+<div style="display: flex; flex-direction: column; align-items: center; gap: 20px;">
+  <svg width="220" height="280" viewBox="0 0 267.66 332.28" xmlns="http://www.w3.org/2000/svg" aria-label="Loading" style="filter: drop-shadow(0 12px 30px rgba(0,0,0,.12));">
+    <defs>
+      <clipPath id="logo-clip">
+        <path d="M102.73,62.51C56.52,108.91,6.13,176.86,39.06,245.11c36.61,75.87,147.09,77.95,187.43,4.33,35.07-64-6.16-131.87-51.51-177.23-25.54,20.67-49.68,44.17-68.2,71.51-15.66,23.1-30.13,53.59-12.89,80.02,20.87,31.98,72.2,26.59,85.41-9.49,10.71-29.25-7.41-57.53-24.49-79.89l20.24-18.73c16.95,21.16,33.52,48.88,35.2,76.64,4.46,73.67-88.36,111.37-134.8,53.91-31.26-38.68-16.32-82.71,9.07-119.23,24.4-35.11,57.06-64.57,90.79-90.49,26.32,21.97,50.06,48.12,67.48,77.83,31.69,54.05,36.06,116.62-4.38,167.55-58.61,73.83-173.19,65.08-220.48-16.09-27.42-47.06-21.26-99.68,4-145.97C47.53,72.82,88.28,34.98,127.88,0h1.48s22.98,17.97,22.98,17.97c-9.89,8.23-19.92,16.34-29.47,24.98-6.94,6.28-13.56,12.94-20.14,19.55Z"/>
+      </clipPath>
+    </defs>
+    <g clip-path="url(#logo-clip)">
+      <!-- Main fill that rises and falls in a loop -->
+      <rect id="mainFill" x="0" y="332.28" width="267.66" height="0" fill="#1E5FFF">
+        <animate attributeName="y" values="332.28;0;332.28" dur="6s" repeatCount="indefinite" keySplines=".25,.1,.25,1; .25,.1,.25,1" calcMode="spline" />
+        <animate attributeName="height" values="0;332.28;0" dur="6s" repeatCount="indefinite" keySplines=".25,.1,.25,1; .25,.1,.25,1" calcMode="spline" />
+      </rect>
+      
+      <!-- Ultra-visible white waves that track the looping fill -->
+      <g id="waveSurface">
+        <!-- Main ultra-prominent white wave -->
+        <path fill="none" stroke="white" stroke-width="12" opacity="1">
+          <animate attributeName="d" 
+                   values="M 0 0 Q 40 -18 80 0 Q 120 18 160 0 Q 200 -18 240 0 Q 267 18 267 0;
+                           M 0 0 Q 40 18 80 0 Q 120 -18 160 0 Q 200 18 240 0 Q 267 -18 267 0;
+                           M 0 0 Q 40 0 80 -18 Q 120 0 160 18 Q 200 0 240 -18 Q 267 0 267 0;
+                           M 0 0 Q 40 -18 80 0 Q 120 18 160 0 Q 200 -18 240 0 Q 267 18 267 0" 
+                   dur="2s" 
+                   repeatCount="indefinite" />
+        </path>
+        
+        <!-- Secondary massive white wave -->
+        <path fill="none" stroke="white" stroke-width="10" opacity="0.95">
+          <animate attributeName="d" 
+                   values="M 0 -6 Q 50 -20 100 -6 Q 150 8 200 -6 Q 225 -20 267 -6;
+                           M 0 -6 Q 50 8 100 -6 Q 150 -20 200 -6 Q 225 8 267 -6;
+                           M 0 -6 Q 50 -6 100 -20 Q 150 -6 200 8 Q 225 -6 267 -6;
+                           M 0 -6 Q 50 -20 100 -6 Q 150 8 200 -6 Q 225 -20 267 -6" 
+                   dur="1.5s" 
+                   repeatCount="indefinite" />
+        </path>
+        
+        <!-- Third bold white wave -->
+        <path fill="none" stroke="white" stroke-width="8" opacity="0.9">
+          <animate attributeName="d" 
+                   values="M 0 4 Q 35 -12 70 4 Q 105 20 140 4 Q 175 -12 210 4 Q 245 20 267 4;
+                           M 0 4 Q 35 20 70 4 Q 105 -12 140 4 Q 175 20 210 4 Q 245 -12 267 4;
+                           M 0 4 Q 35 4 70 -12 Q 105 4 140 20 Q 175 4 210 -12 Q 245 4 267 4;
+                           M 0 4 Q 35 -12 70 4 Q 105 20 140 4 Q 175 -12 210 4 Q 245 20 267 4" 
+                   dur="1.8s" 
+                   repeatCount="indefinite" />
+        </path>
+        
+        <!-- Fourth accent white wave -->
+        <path fill="none" stroke="white" stroke-width="6" opacity="0.85">
+          <animate attributeName="d" 
+                   values="M 0 -10 Q 30 -25 60 -10 Q 90 5 120 -10 Q 150 -25 180 -10 Q 210 5 240 -10 Q 267 -25 267 -10;
+                           M 0 -10 Q 30 5 60 -10 Q 90 -25 120 -10 Q 150 5 180 -10 Q 210 -25 240 -10 Q 267 5 267 -10;
+                           M 0 -10 Q 30 -10 60 -25 Q 90 -10 120 5 Q 150 -10 180 -25 Q 210 -10 240 5 Q 267 -10 267 -10;
+                           M 0 -10 Q 30 -25 60 -10 Q 90 5 120 -10 Q 150 -25 180 -10 Q 210 5 240 -10 Q 267 -25 267 -10" 
+                   dur="1.3s" 
+                   repeatCount="indefinite" />
+        </path>
+        
+        <!-- Animate the entire wave group to follow the looping fill -->
+        <animateTransform attributeName="transform" 
+                          type="translate" 
+                          values="0 332.28; 0 0; 0 332.28" 
+                          dur="6s" 
+                          repeatCount="indefinite" 
+                          keySplines=".25,.1,.25,1; .25,.1,.25,1" 
+                          calcMode="spline" />
+      </g>
+    </g>
+    
+    <path d="M102.73,62.51C56.52,108.91,6.13,176.86,39.06,245.11c36.61,75.87,147.09,77.95,187.43,4.33,35.07-64-6.16-131.87-51.51-177.23-25.54,20.67-49.68,44.17-68.2,71.51-15.66,23.1-30.13,53.59-12.89,80.02,20.87,31.98,72.2,26.59,85.41-9.49,10.71-29.25-7.41-57.53-24.49-79.89l20.24-18.73c16.95,21.16,33.52,48.88,35.2,76.64,4.46,73.67-88.36,111.37-134.8,53.91-31.26-38.68-16.32-82.71,9.07-119.23,24.4-35.11,57.06-64.57,90.79-90.49,26.32,21.97,50.06,48.12,67.48,77.83,31.69,54.05,36.06,116.62-4.38,167.55-58.61,73.83-173.19,65.08-220.48-16.09-27.42-47.06-21.26-99.68,4-145.97C47.53,72.82,88.28,34.98,127.88,0h1.48s22.98,17.97,22.98,17.97c-9.89,8.23-19.92,16.34-29.47,24.98-6.94,6.28-13.56,12.94-20.14,19.55Z" fill="none" stroke="#0D50CD" stroke-width="3"/>
+  </svg>
+  <div id="loadingText" style="color: #0D50CD; font-size: 16px; font-weight: 500; text-align: center; margin-top: 10px;">
+    Analyzing water quality...
+  </div>
+</div>`;
+            
+            document.body.appendChild(overlay);
+            
+            // Real analysis steps matching the actual app workflow
+            const loadingPhrases = [
+                "Processing test strip image...",
+                "Analyzing test strip values...",
+                "Reading chemical indicators...",
+                "Processing water body image...",
+                "Analyzing water body conditions...",
+                "Identifying potential contamination...",
+                "Getting satellite imagery...",
+                "Analyzing location data...",
+                "Examining surrounding environment...",
+                "Compiling final report..."
+            ];
+            
+            let currentPhraseIndex = 0;
+            const textElement = document.getElementById('loadingText');
+            
+            // Function to schedule next phrase change with random timing
+            function scheduleNextPhrase() {
+                // Random interval between 1.5 and 3.5 seconds
+                const randomInterval = Math.random() * 2000 + 1500;
+                
+                setTimeout(() => {
+                    currentPhraseIndex = currentPhraseIndex + 1;
+                    
+                    // Stop at the last phrase instead of looping
+                    if (currentPhraseIndex < loadingPhrases.length) {
+                        textElement.textContent = loadingPhrases[currentPhraseIndex];
+                        scheduleNextPhrase(); // Schedule the next change only if not at end
+                    }
+                }, randomInterval);
+            }
+            
+            // Start the random phrase cycling
+            scheduleNextPhrase();
+            
+            // Simulate loading time
+            await new Promise(r => setTimeout(r, duration));
+            
+            // Clean up any remaining timeouts and remove overlay
+            overlay.remove();
+            
+            // Remove pressed state
+            if (btn) {
+                btn.classList.remove('is-pressed');
+            }
+            
+            // Show completion message
+            alert('✅ Analysis complete! (This would normally redirect to results page)');
+        }
+        
+        // Add some keyboard shortcuts for quick testing
+        document.addEventListener('keydown', function(e) {
+            if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                showLoading();
+            }
+        });
+        
+        console.log('🌊 Loading Component Preview Ready!');
+        console.log('💡 Press SPACE or ENTER to trigger loading animation');
+        console.log('🎯 Click buttons to test different durations');
+    </script>
+</body>
+</html>
