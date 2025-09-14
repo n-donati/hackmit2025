@@ -12,6 +12,7 @@ import time
 from strips.process_image import process_image as process_strip_base64
 from strips.utils import build_strip_final
 from waterbody.utils import analyze_water_image
+from location.utils import reverse_geocode
 from .finalize_utils import finalize_report
 
 
@@ -120,6 +121,12 @@ def aggregate_analysis(request):
 
         # 3) Location static map URL (proxied via our backend endpoint that injects API key)
         static_map_url = f"/location/aerial/?lat={latitude}&lng={longitude}&zoom=16&size=640x400&maptype=satellite"
+        # Reverse geocode (with internal cache) to add a lightweight hint for the LLM
+        loc_extra = {}
+        try:
+            loc_extra = reverse_geocode(latitude, longitude)
+        except Exception:
+            loc_extra = {}
 
         # Clean, minimal response (no overlapping fields)
         response = {
@@ -129,6 +136,7 @@ def aggregate_analysis(request):
                 'lat': latitude,
                 'lng': longitude,
                 'static_map_url': static_map_url,
+                'hint': (loc_extra or {}).get('location_hint'),
             },
             'errors': {
                 'strip': strip_error,
@@ -148,13 +156,14 @@ def aggregate_analysis(request):
         try:
             num_analytes = (response.get('strip') or {}).get('num_analytes')
             agg_logger.info(
-                "Aggregated summary: strip_bytes=%d water_bytes=%d analytes=%s water_present=%s lat=%s lng=%s",
+                "Aggregated summary: strip_bytes=%d water_bytes=%d analytes=%s water_present=%s lat=%s lng=%s hint=%s",
                 strip_received_bytes,
                 water_received_bytes,
                 num_analytes,
                 bool(response.get('waterbody')),
                 latitude,
                 longitude,
+                (loc_extra or {}).get('location_hint'),
             )
         except Exception:
             pass
@@ -257,6 +266,11 @@ def aggregate_finalize(request):
             t1.start(); t2.start(); t1.join(); t2.join()
 
             static_map_url = f"/location/aerial/?lat={latitude}&lng={longitude}&zoom=16&size=640x400&maptype=satellite"
+            loc_extra = {}
+            try:
+                loc_extra = reverse_geocode(latitude, longitude)
+            except Exception:
+                loc_extra = {}
             combined = {
                 'strip': build_strip_final(strip_result or {}),
                 'waterbody': water_result or None,
@@ -264,6 +278,7 @@ def aggregate_finalize(request):
                     'lat': latitude,
                     'lng': longitude,
                     'static_map_url': static_map_url,
+                    'hint': (loc_extra or {}).get('location_hint'),
                 },
                 'errors': {
                     'strip': None if strip_result else 'strip_failed',
@@ -280,7 +295,7 @@ def aggregate_finalize(request):
                 ai_input = {
                     'strip': {'values': strip_result or {}},
                     'waterbody': water_result or None,
-                    'location': {'lat': latitude, 'lng': longitude},
+                    'location': {'lat': latitude, 'lng': longitude, 'hint': (loc_extra or {}).get('location_hint')},
                 }
                 ai_result = finalize_report(ai_input, user_use_case)
                 t1 = time.time()
@@ -289,7 +304,7 @@ def aggregate_finalize(request):
                 use_titles = {
                     'drinking': 'Purify for Drinking Use',
                     'irrigation': 'Purify for Irrigation Use',
-                    'human': 'Purify for Human Use',
+                    'human': 'Purify for Hygiene & Cleaning',
                     'animals': 'Purify for Animal Use',
                 }
                 ai_result['selected_use'] = user_use_case
@@ -323,7 +338,7 @@ def aggregate_finalize(request):
                 use_case_texts = {
                     'drinking': "Purify for drinking: filter, disinfect (boil/chemical/UV), then store safely.",
                     'irrigation': "Purify for irrigation: coarse filter to remove sediment, then disinfect before use.",
-                    'human': "Purify for human contact: filter, disinfect; avoid contact if skin irritation occurs.",
+                    'human': "Purify for hygiene/cleaning: filter, disinfect; avoid ingestion; rinse skin if irritation.",
                     'animals': "Purify for animals: filter and disinfect; monitor animals for signs of illness.",
                 }
                 purify_for = use_case_texts.get(user_use_case or '', "Filter and disinfect before your selected use.")
@@ -374,7 +389,7 @@ def aggregate_finalize(request):
         use_case_texts = {
             'drinking': "Purify for drinking: filter, disinfect (boil/chemical/UV), then store safely.",
             'irrigation': "Purify for irrigation: coarse filter to remove sediment, then disinfect before use.",
-            'human': "Purify for human contact: filter, disinfect; avoid contact if skin irritation occurs.",
+            'human': "Purify for hygiene/cleaning: filter, disinfect; avoid ingestion; rinse skin if irritation.",
             'animals': "Purify for animals: filter and disinfect; monitor animals for signs of illness.",
         }
         purify_for = use_case_texts.get(user_use_case, "Treat the water in three simple steps: filter, disinfect, and use for your selected purpose.")
@@ -392,7 +407,7 @@ def aggregate_finalize(request):
             ai_input = {
                 'strip': {'values': strip_values},
                 'waterbody': data.get('waterbody') or None,
-                'location': {'lat': loc.get('lat'), 'lng': loc.get('lng')},
+                'location': {'lat': loc.get('lat'), 'lng': loc.get('lng'), 'hint': loc.get('hint')},
             }
             ai_result = finalize_report(ai_input, user_use_case or '')
             t1 = time.time()
@@ -400,7 +415,7 @@ def aggregate_finalize(request):
             use_titles = {
                 'drinking': 'Purify for Drinking Use',
                 'irrigation': 'Purify for Irrigation Use',
-                'human': 'Purify for Human Use',
+                'human': 'Purify for Hygiene & Cleaning',
                 'animals': 'Purify for Animal Use',
             }
             ai_result['selected_use'] = user_use_case

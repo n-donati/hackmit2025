@@ -48,12 +48,12 @@ def finalize_report(combined: Dict[str, Any], use_case: str) -> Dict[str, Any]:
 
     combined_json = json.dumps(combined, ensure_ascii=False)
     prompt = (
-        "Given combined_json (string) and selected_use in {drinking, irrigation, human, animals}, produce dict result with EXACT KEYS: \n"
+        "Given combined_json (string), optional location hint at data.location.hint, and selected_use in {drinking, irrigation, human, animals}, produce dict result with EXACT KEYS: \n"
         "- water_health_percent: '<int>%';\n"
         "- current_water_use_cases: one concise sentence;\n"
         "- potential_dangers: one concise sentence;\n"
         "- purify_for_selected_use: one concise sentence tailored to selected_use.\n"
-        "Policy: realistic, non-alarmist; if evidence weak, use 55–75%. Weigh strong visual evidence higher; consider benign causes. Tailor phrasing to selected_use.\n"
+        "Policy: realistic, non-alarmist; if evidence weak, use 55–75%. Weigh strong visual evidence higher; consider benign causes. Tailor phrasing to selected_use. If selected_use == 'human', interpret as non-consumptive hygiene/cleaning only (e.g., showering, bathing, laundry); never recommend or imply drinking. If location.hint exists (e.g., country/region), you may adapt guidance to typical local constraints; do not hallucinate precise places.\n"
         "Output Python only: import json; data=json.loads(combined_json); selected=selected_use; final_answer(json.dumps(result, ensure_ascii=False))."
     )
 
