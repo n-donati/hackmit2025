@@ -6,6 +6,56 @@ from typing import Dict, Any, List
 import hashlib
 import time
 
+# Plain-text reference ranges for strip analytes (for qualitative guidance only)
+_REFERENCE_RANGES_TEXT = (
+    "Total Alkalinity: 40 - 240 mg/L\n"
+    "pH: 6.8 - 8.4\n"
+    "Hardness: TBD (To Be Determined)\n"
+    "Hydrogen Sulfide: 0 mg/L\n"
+    "Iron: 0 - 0.3 mg/L\n"
+    "Copper: 0 - 1 mg/L\n"
+    "Lead: 0 - 15 µg/L\n"
+    "Manganese: 0 - 0.1 mg/L\n"
+    "Total Chlorine: 0 - 3 mg/L\n"
+    "Free Chlorine: 0 - 3 mg/L\n"
+    "Nitrate: 0 - 10 mg/L\n"
+    "Nitrite: 0 - 1 mg/L\n"
+    "Sulfate: 0 - 200 mg/L\n"
+    "Zinc: 0 - 5 mg/L\n"
+    "Sodium Chloride: 0 - 250 mg/L\n"
+    "Fluoride: 0 - 4 mg/L"
+)
+
+# Best-effort formatter to convert any strip-related content to a plain-text summary
+def _format_strip_context_text(obj: Dict[str, Any] | None) -> str:
+    try:
+        if not isinstance(obj, dict):
+            return ""
+        # Accept preformatted text if provided
+        pre = (
+            obj.get('strip_text')
+            or (obj.get('strip') or {}).get('text')
+            or (obj.get('strip') or {}).get('analysis_text')
+            or (obj.get('strip') or {}).get('analysis')
+        )
+        if isinstance(pre, str) and pre.strip():
+            return pre.strip()
+
+        # Otherwise flatten any values into a readable single-line string
+        values = (obj.get('strip') or {}).get('values')
+        if isinstance(values, dict) and values:
+            parts: List[str] = []
+            for key, val in values.items():
+                try:
+                    parts.append(f"{str(key)}: {str(val)}")
+                except Exception:
+                    continue
+            if parts:
+                return "Strip test results — " + "; ".join(parts)
+        return ""
+    except Exception:
+        return ""
+
 # Reuse quieting helpers from waterbody utils if available
 try:
     from waterbody.utils import suppress_logs_and_output, suppress_stdout_stderr  # type: ignore
@@ -47,6 +97,8 @@ def finalize_report(combined: Dict[str, Any], use_case: str) -> Dict[str, Any]:
     agent = CodeAgent(tools=[], model=model, additional_authorized_imports=["json"], max_steps=1)
 
     combined_json = json.dumps(combined, ensure_ascii=False)
+    strip_context_text = _format_strip_context_text(combined)
+    # Embed plain-text guidance directly in the prompt so the agent sees it without parsing
     prompt = (
         "Given combined_json (string), optional location hint at data.location.hint, and selected_use in {drinking, irrigation, human, animals}, produce dict result with EXACT KEYS: \n"
         "- water_health_percent: '<int>%';\n"
@@ -54,6 +106,10 @@ def finalize_report(combined: Dict[str, Any], use_case: str) -> Dict[str, Any]:
         "- potential_dangers: one concise sentence;\n"
         "- purify_for_selected_use: one concise sentence tailored to selected_use.\n"
         "Policy: realistic, non-alarmist; if evidence weak, use 55–75%. Weigh strong visual evidence higher; consider benign causes. Tailor phrasing to selected_use. If selected_use == 'human', interpret as non-consumptive hygiene/cleaning only (e.g., showering, bathing, laundry); never recommend or imply drinking. If location.hint exists (e.g., country/region), you may adapt guidance to typical local constraints; do not hallucinate precise places.\n"
+        "Strip guidance: treat strip test context as LOW-CONFIDENCE, supplementary only. Prefer non-strip sources (visual waterbody analysis, general knowledge, location). If strip context conflicts or is ambiguous, ignore it. Do not change water_health_percent by more than ±5% based solely on strip context.\n\n"
+        "Additional context (plain text; do not parse into structured data):\n"
+        "Reference ranges:\n" + _REFERENCE_RANGES_TEXT + "\n\n"
+        "Strip test context (low-confidence):\n" + (strip_context_text or "(none)") + "\n\n"
         "Output Python only: import json; data=json.loads(combined_json); selected=selected_use; final_answer(json.dumps(result, ensure_ascii=False))."
     )
 
@@ -152,10 +208,12 @@ def generate_detailed_plan(final_result: Dict[str, Any], analysis: Dict[str, Any
     model = _ensure_model()
     agent = CodeAgent(tools=[], model=model, additional_authorized_imports=["json"], max_steps=1)
 
-    # Build compact context
+    # Build compact context with plain-text strip info
+    strip_text = _format_strip_context_text(analysis if isinstance(analysis, dict) else None)
     ctx = {
         'final': final_result or {},
-        'strip_values': ((analysis or {}).get('strip') or {}).get('values') if isinstance(analysis, dict) else None,
+        'strip_text': strip_text,
+        'reference_ranges': _REFERENCE_RANGES_TEXT,
         'waterbody': (analysis or {}).get('waterbody') if isinstance(analysis, dict) else None,
         'location': (analysis or {}).get('location') if isinstance(analysis, dict) else None,
     }
@@ -164,8 +222,9 @@ def generate_detailed_plan(final_result: Dict[str, Any], analysis: Dict[str, Any
     prompt = (
         "You are a water safety practitioner. Given ctx_json, generate a detailed purification plan.\n"
         "Inputs: ctx_json has keys: final (LLM summary with selected use, dangers, purify guidance, percent),\n"
-        "optional strip_values (mapping of analyte->value), optional waterbody (evaluation & observations), optional location (lat,lng,hint).\n\n"
-        "Task: Produce a Python list named steps of 6–10 items. Each item is a dict:\n"
+        "optional strip_text (plain text summary of test strip results), reference_ranges (plain text table for qualitative guidance), optional waterbody (evaluation & observations), optional location (lat,lng,hint).\n\n"
+        "Note: strip_text and reference_ranges are LOW-CONFIDENCE, for qualitative reasoning only; do not attempt to parse into structured data. Prefer non-strip evidence (final summary, waterbody, general knowledge). If strip hints conflict or are unclear, ignore them.\n\n"
+        "Task: Produce a Python list named steps of 4–6 items. Each item is a dict:\n"
         "{ 'title': short string, 'description': 2–4 sentences }.\n\n"
         "Policy:\n"
         "- Align with final.selected_use (non-consumptive if 'human': showering, bathing, laundry; do not imply drinking).\n"
