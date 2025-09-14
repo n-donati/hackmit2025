@@ -106,7 +106,7 @@ def finalize_report(combined: Dict[str, Any], use_case: str) -> Dict[str, Any]:
         "- potential_dangers: one concise sentence;\n"
         "- purify_for_selected_use: one concise sentence tailored to selected_use.\n"
         "Policy: realistic, non-alarmist; if evidence weak, use 55–75%. Weigh strong visual evidence higher; consider benign causes. Tailor phrasing to selected_use. If selected_use == 'human', interpret as non-consumptive hygiene/cleaning only (e.g., showering, bathing, laundry); never recommend or imply drinking. If location.hint exists (e.g., country/region), you may adapt guidance to typical local constraints; do not hallucinate precise places.\n"
-        "Strip guidance: treat strip test context as LOW-CONFIDENCE, supplementary only. Prefer non-strip sources (visual waterbody analysis, general knowledge, location). If strip context conflicts or is ambiguous, ignore it. Do not change water_health_percent by more than ±5% based solely on strip context.\n\n"
+        "Strip guidance: treat strip test context as LOW-CONFIDENCE, supplementary only. Prefer non-strip sources (visual waterbody analysis, general knowledge, location). If strip context conflicts or is ambiguous, ignore it. Do not change water_health_percent by more than ±10% based solely on strip context.\n\n"
         "Additional context (plain text; do not parse into structured data):\n"
         "Reference ranges:\n" + _REFERENCE_RANGES_TEXT + "\n\n"
         "Strip test context (low-confidence):\n" + (strip_context_text or "(none)") + "\n\n"
