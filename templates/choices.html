@@ -456,13 +456,15 @@
                     body: fd
                 });
                 const data = await res.json();
+                console.log('[FINALIZE] Backend payload from /aggregate/finalize/:', data);
+
                 overlay.remove();
                 if (!res.ok) throw new Error(data.error || 'Failed');
                 // Pass results to health page
                 try {
                     sessionStorage.setItem('final_result', JSON.stringify(data));
                 } catch (e) {}
-                window.location.href = '/health/';
+                window.location.href = '/health/?choice=' + encodeURIComponent(useCase);
             } catch (e) {
                 alert('Error: ' + e.message);
             }
