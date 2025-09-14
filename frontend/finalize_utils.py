@@ -98,92 +98,106 @@ def finalize_report(combined: Dict[str, Any], use_case: str) -> Dict[str, Any]:
     # Simple LRU cache to avoid repeated finalizations on same input
     combined_json = json.dumps(combined, ensure_ascii=False)
     cache_key = hashlib.sha256((combined_json + "\n" + (use_case or '')).encode('utf-8')).hexdigest()
-    cached = _FINALIZE_CACHE.get(cache_key)
-    if cached is not None:
-        return cached
+    
+    # Always try to make a fresh API call first, use cache only as fallback
+    result = None
+    
+    # Prepare the API request payload - sending the exact same info
+    api_payload = {
+        'combined': combined,
+        'use_case': use_case
+    }
 
-    # Check if we already have the full API response cached
-    api_response_cached = _API_RESPONSE_CACHE.get(cache_key)
-    if api_response_cached:
-        print(f"[FINALIZE] Using cached API response")
-        api_response = api_response_cached
-        # Extract the result from the cached response
+    try:
+        t0 = time.time()
+        print(f"[FINALIZE] Starting fresh API request to judge endpoint...")
+        print(f"[FINALIZE] Payload keys: {list(api_payload.keys())}")
+        
+        # Make the API request with extended timeout
+        response = requests.post(
+            'http://35.233.224.11/judge/',
+            json=api_payload,
+            timeout=120,  # 2 minute timeout to allow for API processing
+            headers={'Content-Type': 'application/json'}
+        )
+        
+        t1 = time.time()
+        print(f"[FINALIZE] api_request={t1 - t0:.2f}s, status_code={response.status_code}")
+        
+        response.raise_for_status()  # Raise an exception for bad status codes
+        
+        # Parse the response
+        api_response = response.json()
+        print(f"[FINALIZE] API response received successfully")
+        print(f"[FINALIZE] Full API response: {json.dumps(api_response, indent=2)}")
+        print(f"[FINALIZE] API response keys: {list(api_response.keys())}")
+        
+        # Cache the full API response for use by generate_detailed_plan
+        _API_RESPONSE_CACHE[cache_key] = api_response
+        
+        # Extract the result from the nested structure
         if 'result' in api_response:
             result = api_response['result']
+            print(f"[FINALIZE] Extracted result from 'result' key: {json.dumps(result, indent=2)}")
         else:
-            result = api_response
-    else:
-        # Prepare the API request payload - sending the exact same info
-        api_payload = {
-            'combined': combined,
-            'use_case': use_case
+            print(f"[FINALIZE] No 'result' key found, using full response as result")
+            result = api_response  # Fallback if structure changes
+        
+        print(f"[FINALIZE] Final result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+        print(f"[FINALIZE] water_health_percent value: {result.get('water_health_percent', 'NOT_FOUND')}")
+        print(f"[FINALIZE] current_water_use_cases value: {result.get('current_water_use_cases', 'NOT_FOUND')}")
+        print(f"[FINALIZE] potential_dangers value: {result.get('potential_dangers', 'NOT_FOUND')}")
+        print(f"[FINALIZE] purify_for_selected_use value: {result.get('purify_for_selected_use', 'NOT_FOUND')}")
+        
+        # Validate that we have the required keys (but don't fail if missing, just log)
+        required_keys = ['water_health_percent', 'current_water_use_cases', 'potential_dangers', 'purify_for_selected_use']
+        missing_keys = [key for key in required_keys if key not in result]
+        if missing_keys:
+            print(f"[FINALIZE] WARNING: Missing required keys in API response: {missing_keys}")
+            # Don't raise an error, just log and continue with what we have
+        else:
+            print(f"[FINALIZE] SUCCESS: All required keys present in API response")
+        
+    except requests.exceptions.RequestException as e:
+        print(f"[FINALIZE] API request failed: {e}")
+        # Try to use cached result as fallback
+        cached = _FINALIZE_CACHE.get(cache_key)
+        if cached:
+            print(f"[FINALIZE] Using cached result as fallback")
+            return cached
+        # Fallback to default response if API fails and no cache
+        result = {
+            'water_health_percent': "50%",
+            'current_water_use_cases': "Use with caution; treat before sensitive uses.",
+            'potential_dangers': "Possible microbial or chemical contaminants.",
+            'purify_for_selected_use': "Filter and disinfect before your selected use.",
+        }
+    except (ValueError, KeyError, json.JSONDecodeError) as e:
+        print(f"[FINALIZE] API response parsing failed: {e}")
+        # Try to use cached result as fallback
+        cached = _FINALIZE_CACHE.get(cache_key)
+        if cached:
+            print(f"[FINALIZE] Using cached result as fallback")
+            return cached
+        # Fallback to default response if parsing fails and no cache
+        result = {
+            'water_health_percent': "50%",
+            'current_water_use_cases': "Use with caution; treat before sensitive uses.",
+            'potential_dangers': "Possible microbial or chemical contaminants.",
+            'purify_for_selected_use': "Filter and disinfect before your selected use.",
         }
 
+    # Update cache with successful result
+    if result and 'water_health_percent' in result and result['water_health_percent'] != "50%":
         try:
-            t0 = time.time()
-            print(f"[FINALIZE] Starting API request to judge endpoint...")
-            print(f"[FINALIZE] Payload keys: {list(api_payload.keys())}")
-            
-            # Make the API request with extended timeout
-            response = requests.post(
-                'http://35.233.224.11/judge/',
-                json=api_payload,
-                timeout=120,  # 2 minute timeout to allow for API processing
-                headers={'Content-Type': 'application/json'}
-            )
-            
-            t1 = time.time()
-            print(f"[FINALIZE] api_request={t1 - t0:.2f}s, status_code={response.status_code}")
-            
-            response.raise_for_status()  # Raise an exception for bad status codes
-            
-            # Parse the response
-            api_response = response.json()
-            print(f"[FINALIZE] API response received successfully")
-            print(f"[FINALIZE] API response keys: {list(api_response.keys())}")
-            
-            # Cache the full API response for use by generate_detailed_plan
-            _API_RESPONSE_CACHE[cache_key] = api_response
-            
-            # Extract the result from the nested structure
-            if 'result' in api_response:
-                result = api_response['result']
-                print(f"[FINALIZE] Extracted result from 'result' key")
-            else:
-                print(f"[FINALIZE] No 'result' key found, using full response")
-                result = api_response  # Fallback if structure changes
-            
-            print(f"[FINALIZE] Final result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
-            print(f"[FINALIZE] water_health_percent value: {result.get('water_health_percent', 'NOT_FOUND')}")
-            
-        except requests.exceptions.RequestException as e:
-            print(f"[FINALIZE] API request failed: {e}")
-            # Fallback to default response if API fails
-            result = {
-                'water_health_percent': "50%",
-                'current_water_use_cases': "Use with caution; treat before sensitive uses.",
-                'potential_dangers': "Possible microbial or chemical contaminants.",
-                'purify_for_selected_use': "Filter and disinfect before your selected use.",
-            }
-        except (ValueError, KeyError, json.JSONDecodeError) as e:
-            print(f"[FINALIZE] API response parsing failed: {e}")
-            # Fallback to default response if parsing fails
-            result = {
-                'water_health_percent': "50%",
-                'current_water_use_cases': "Use with caution; treat before sensitive uses.",
-                'potential_dangers': "Possible microbial or chemical contaminants.",
-                'purify_for_selected_use': "Filter and disinfect before your selected use.",
-            }
-
-    # Update cache
-    try:
-        _FINALIZE_CACHE[cache_key] = result
-        _FINALIZE_ORDER.append(cache_key)
-        if len(_FINALIZE_ORDER) > 32:
-            old = _FINALIZE_ORDER.pop(0)
-            _FINALIZE_CACHE.pop(old, None)
-    except Exception:
-        pass
+            _FINALIZE_CACHE[cache_key] = result
+            _FINALIZE_ORDER.append(cache_key)
+            if len(_FINALIZE_ORDER) > 32:
+                old = _FINALIZE_ORDER.pop(0)
+                _FINALIZE_CACHE.pop(old, None)
+            print(f"[FINALIZE] Cached successful API result")
+        except Exception:
+            pass
 
     return result
 
